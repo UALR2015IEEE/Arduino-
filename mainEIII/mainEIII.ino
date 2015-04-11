@@ -14,6 +14,7 @@ void announce_sensors();
 int get_int(int chars = 1);
 void set_speed(int left, int right);
 boolean read_serial();
+int bound(int num, int zero, int dead, int max);
 
 //variable declarations
 unsigned long time = millis();
@@ -161,32 +162,8 @@ int get_int(int chars){
 }
 
 void set_speed(int left, int right) {
-    if (right > 2198){
-        right = 2198;
-    }
-    if (right < 1898){
-        right = 1898;
-    }
-    if (right < 2120 && right > 2048){
-        right = 2120;
-    }
-    if (right > 1976 && right < 2048)
-    {
-        right = 1976;
-    }
-    if (left > 2198){
-        left = 2198;
-    }
-    if (left < 1898){
-        left = 1898;
-    }
-    if (left < 2120 && left > 2048){
-        left = 2120;
-    }
-    if (left > 1976 && left < 2048)
-    {
-        left = 1976;
-    }
+    right = bound(right, 2048, 72, 150);
+    left = left(right, 2048, 72, 150);
     Serial.print(right);
     Serial.print(" ");
     Serial.print(left);
@@ -202,6 +179,29 @@ void set_speed(int left, int right) {
     Serial1.write((target_right >> 5) & 0x7F);   //second half of the target, " " "
     Serial2.write((target_left >> 5) & 0x7F);   //second half of the target, " " "
  }
+
+int bound(int num, int zero, int dead, int max)
+{
+    if(num == zero) return zero;
+
+    int difference = abs(num - zero);
+    int factor = 0;
+    if(num > zero) factor = 1;
+    else if(num < zero) factor = -1;
+
+    if(difference < dead)
+    {
+        return zero+(dead*factor);
+    }
+
+    if(difference > max)
+    {
+        return zero+(max*factor);
+    }
+
+    return num;
+
+}
 
 boolean read_serial(){
     if (Serial.available()){
