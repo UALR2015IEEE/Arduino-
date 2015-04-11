@@ -1,8 +1,21 @@
+/* -*- C++ -*- */
+
+//Includes
 #include <NewPing.h>
 #include <millis>;
 #include <Serial>;
 
+//function declarations
+float ping_median(NewPing* sensor);
+void stablize();
+void rotate();
+void exec_command();
+void announce_sensors();
+int get_int(int chars = 1);
+void set_speed(int x, int y);
+boolean read_serial();
 
+//variable declarations
 unsigned long time = millis();
 byte readbyte;
 byte writebyte;
@@ -14,51 +27,58 @@ const int unit = 12;
 word targetx = 0;  //only pass this ints, i tried doing math in this and the remainder error screwed something up
 word targety = 0;
 
-NewPing sonlf(23, 22, 50);
-NewPing sonrf(25, 24, 50);
-NewPing sonlr(27, 26, 50);
-NewPing sonrr(31, 30, 50);
-NewPing sonff(29, 28, 50);
+NewPing* sonlf;
+NewPing* sonrf;
+NewPing* sonlr;
+NewPing* sonrr;
+NewPing* sonff;
 
 void setup(){
+
+    sonlf = new NewPing(23, 22, 50);
+    sonrf = new NewPing(25, 24, 50);
+    sonlr = new NewPing(27, 26, 50);
+    sonrr = new NewPing(31, 30, 50);
+    sonff = new NewPing(29, 28, 50);
+
     Serial1.begin(9600);
     Serial2.begin(9600);
     Serial.begin(115200);
     Serial.flush();
     Serial1.flush();
     Serial2.flush();
-    
-    SetSpeed(2048, 2048);
+
+    set_speed(2048, 2048);
 }
 
 void loop() {
   if (Serial.available()){
-    command_stat = readserial();
-    //annoucesence();
+    command_stat = read_serial();
+    //announce_sensors();
     if (command_stat){
       exec_command();
      }
   }
 }
-float pingmedian(NewPing &senc){
-  float newname = 12;
+
+float ping_median(NewPing* sensor){
+  float avg = 12;
   int pini;
   for(int i = 0; i < 3; i++){
-    pini = senc.ping();
+    pini = sensor->ping();
     delay(15);
     if(pini == 0){
-      pini = senc.ping();
+      pini = sensor->ping();
       if(pini == 0){
-        pini = senc.ping();
+        pini = sensor->ping();
       }
     }
-    newname = ((newname*i)+ pini)/(i+1);
+    avg = ((avg*i) + pini)/(i+1);
   }
-  return newname; 
+  return avg;
 }
-    
 
-void stableize(){
+void stablize(){
   boolean stable = false;
   float tolf;
   float tolr;
@@ -70,11 +90,11 @@ void stableize(){
   float deltafactor;
   int initialx = targetx;
   int initialy = targety;
-  while(stable == false){
-    tolf = pingmedian(sonlf);
-    torr = pingmedian(sonrr);
-    tolr = pingmedian(sonlr);
-    torf = pingmedian(sonrf);
+  while(!stable){
+    tolf = ping_median(sonlf);
+    torr = ping_median(sonrr);
+    tolr = ping_median(sonlr);
+    torf = ping_median(sonrf);
     deltal = tolr - tolf;
     deltar = torf - torr;
     delta = (deltal + deltar) / 10;
@@ -93,48 +113,48 @@ void stableize(){
       stable = true;
     }
     if(delta > 0){
-      SetSpeed(initialx - deltafactor, initialy + deltafactor);
+      set_speed(initialx - deltafactor, initialy + deltafactor);
     }
     if(delta < 0){
-      SetSpeed(initialx + deltafactor, initialy - deltafactor);
+      set_speed(initialx + deltafactor, initialy - deltafactor);
     }
   }
-  SetSpeed(initialx, initialy);
+  set_speed(initialx, initialy);
 
 }
 
 
 void rotate(){
-  stableize();
+  stablize();
 }
 
 void exec_command(){
   rotate();
 }
 
-void annoucesence(){
+void announce_sensors(){
   Serial.print("lf ");
-  Serial.print(sonlf.ping_median(5));
+  Serial.print(ping_median(sonlf));
   Serial.print(" lr ");
-  Serial.print(sonlr.ping_median(5));
+  Serial.print(ping_median(sonlr));
   Serial.print(" rf ");
-  Serial.print(sonrf.ping_median(5));
+  Serial.print(ping_median(sonrf));
   Serial.print(" rr ");
-  Serial.print(sonrr.ping_median(5));
+  Serial.print(ping_median(sonrr));
   Serial.print(" ff ");
-  Serial.print(sonff.ping_median(5));
+  Serial.print(ping_median(sonff));
 
   Serial.print("\n");
 }
 
-int getint(int chars = 1){
+int get_int(int chars = 1){
       char encoded = Serial.read();
       int decoded = encoded - 48;
-      
+
       return decoded;
 }
 
-void SetSpeed(int x, int y) {
+void set_speed(int x, int y) {
   if (x > 2198){
     x = 2198;
   }
@@ -173,32 +193,32 @@ void SetSpeed(int x, int y) {
   Serial2.write(0xB);   //This is the pololu device # you're connected too that is found in the config utility(converted to hex). I'm using #11 in this example
   Serial1.write(0x40 + (targetx & 0x1F)); //first half of the target, see the pololu jrk manual for more specifics
   Serial2.write(0x40 + (targety & 0x1F)); //first half of the target, see the pololu jrk manual for more specifics
-  Serial1.write((targetx >> 5) & 0x7F);   //second half of the target, " " " 
-  Serial2.write((targety >> 5) & 0x7F);   //second half of the target, " " " 
+  Serial1.write((targetx >> 5) & 0x7F);   //second half of the target, " " "
+  Serial2.write((targety >> 5) & 0x7F);   //second half of the target, " " "
  }
 
-boolean readserial(){
+boolean read_serial(){
     if (Serial.available()){
         readbyte = Serial.read();
         Serial.println(readbyte);
 
         if (readbyte == 63){
-          annoucesence();
+          announce_sensors();
             return false;
         }
         if (readbyte == 33){
           move_blocks = 0;
           dir = 0;
             if (Serial.available()){
-                move_blocks = getint();
+                move_blocks = get_int();
             }
             if (Serial.available()){
-                dir = getint();
+                dir = get_int();
             }
             return true;
         }
         if (readbyte == 35){
-          SetSpeed(2150, 2150);
+          set_speed(2150, 2150);
           return false;
         }
     }
@@ -206,6 +226,3 @@ boolean readserial(){
         return false;
     }
 }
-
-
-
