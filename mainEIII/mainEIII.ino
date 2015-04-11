@@ -7,7 +7,7 @@
 
 //function declarations
 float ping_median(NewPing* sensor);
-void stablize();
+void stablize(int time_factor = 0);
 void rotate();
 void exec_command();
 void announce_sensors();
@@ -49,6 +49,7 @@ void setup(){
     Serial2.flush();
 
     set_speed(2048, 2048);
+    stablize();
 }
 
 void loop() {
@@ -78,7 +79,7 @@ float ping_median(NewPing* sensor){
   return avg;
 }
 
-void stablize(){
+void stablize(int time_factor){
   boolean stable = false;
   float tolf;
   float tolr;
@@ -90,7 +91,11 @@ void stablize(){
   float deltafactor;
   int initial_right = target_right;
   int initial_left = target_left;
+  unsigned int start_time = millis();
   while(!stable){
+    if (time_factor != 0 && millis() - start_time > time_factor){
+      break;
+    }
     tolf = ping_median(sonlf);
     torr = ping_median(sonrr);
     tolr = ping_median(sonlr);
@@ -129,7 +134,11 @@ void rotate(){
 }
 
 void exec_command(){
-  rotate();
+  set_speed(2150, 2150);
+  while(true){
+    stablize(15);
+    Serial.println("Exit Loop");
+  }
 }
 
 void announce_sensors(){
