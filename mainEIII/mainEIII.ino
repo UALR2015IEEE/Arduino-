@@ -101,33 +101,17 @@ void stablize(int time_factor){
         torr = ping_median(sonrr);
         tolr = ping_median(sonlr);
         torf = ping_median(sonrf);
-        deltal = tolr - tolf;
-        deltar = torf - torr;
-        delta = (deltal + deltar) / 10;
-        deltafactor = (delta*delta)/5;
-//      Serial.print(tolf);
-//      Serial.print(" ");
-//      Serial.print(tolr);
-//      Serial.print(" ");
-//      Serial.print(torf);
-//      Serial.print(" ");
-//      Serial.print(torr);
-//      Serial.print(" ");
-//      Serial.print(deltafactor);
-//      Serial.print("\n");
-        if(delta == 0 || deltafactor < 3){
-            stable = true;
-        }
-        if(delta > 0){
-            set_speed(initial_left + deltafactor, initial_right - deltafactor);
-        }
-        if(delta < 0){
-            set_speed(initial_left - deltafactor, initial_right + deltafactor);
-        }
+
+        float dLeft = (tolr/tolf)*(torf+torr)/(tolf+tolr);
+        float dright = (torr/torf)*(tolf+tolr)/(torf+torr);
+
+        if(abs(dLeft - dRight) < 0.1) stable = true;
+
+        set_speed(initial_left + 250*dLeft, initial_right + 250*dRight);
+
     }
     set_speed(initial_left, initial_right);
 }
-
 
 void rotate(){
     stablize();
