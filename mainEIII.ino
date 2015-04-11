@@ -12,7 +12,7 @@ void rotate();
 void exec_command();
 void announce_sensors();
 int get_int(int chars = 1);
-void set_speed(int x, int y);
+void set_speed(int left, int right);
 boolean read_serial();
 
 //variable declarations
@@ -24,8 +24,8 @@ byte dir;
 byte move_blocks;
 const int unit = 12;
 
-word targetx = 0;  //only pass this ints, i tried doing math in this and the remainder error screwed something up
-word targety = 0;
+word target_right = 0;  //only pass this ints, i tried doing math in this and the remainder error screwed something up
+word target_left = 0;
 
 NewPing* sonlf;
 NewPing* sonrf;
@@ -88,8 +88,8 @@ void stablize(){
   float deltar;
   float delta;
   float deltafactor;
-  int initialx = targetx;
-  int initialy = targety;
+  int initial_right = target_right;
+  int initial_left = target_left;
   while(!stable){
     tolf = ping_median(sonlf);
     torr = ping_median(sonrr);
@@ -113,13 +113,13 @@ void stablize(){
       stable = true;
     }
     if(delta > 0){
-      set_speed(initialx - deltafactor, initialy + deltafactor);
+      set_speed(initial_left + deltafactor, initial_right - deltafactor);
     }
     if(delta < 0){
-      set_speed(initialx + deltafactor, initialy - deltafactor);
+      set_speed(initial_left - deltafactor, initial_right + deltafactor);
     }
   }
-  set_speed(initialx, initialy);
+  set_speed(initial_left, initial_right);
 
 }
 
@@ -147,54 +147,52 @@ void announce_sensors(){
   Serial.print("\n");
 }
 
-int get_int(int chars = 1){
+int get_int(int chars){
       char encoded = Serial.read();
-      int decoded = encoded - 48;
-
-      return decoded;
+      return encoded - 48;
 }
 
-void set_speed(int x, int y) {
-  if (x > 2198){
-    x = 2198;
+void set_speed(int left, int right) {
+  if (right > 2198){
+    right = 2198;
   }
-   if (x < 1898){
-     x = 1898;
+   if (right < 1898){
+     right = 1898;
    }
-   if (x < 2120 && x > 2048){
-     x = 2120;
+   if (right < 2120 && right > 2048){
+     right = 2120;
    }
-   if (x > 1976 && x < 2048)
+   if (right > 1976 && right < 2048)
    {
-     x = 1976;
+     right = 1976;
    }
-   if (y > 2198){
-    y = 2198;
+   if (left > 2198){
+    left = 2198;
   }
-   if (y < 1898){
-     y = 1898;
+   if (left < 1898){
+     left = 1898;
    }
-   if (y < 2120 && y > 2048){
-     y = 2120;
+   if (left < 2120 && left > 2048){
+     left = 2120;
    }
-   if (y > 1976 && y < 2048)
+   if (left > 1976 && left < 2048)
    {
-     y = 1976;
+     left = 1976;
    }
-  Serial.print(x);
+  Serial.print(right);
   Serial.print(" ");
-  Serial.print(y);
+  Serial.print(left);
   Serial.print("\n");
-  targetx = x;
-  targety = y;
+  target_right = right;
+  target_left = left;
   Serial1.write(0xAA); //tells the controller we're starting to send it commands
   Serial2.write(0xAA); //tells the controller we're starting to send it commands
   Serial1.write(0xB);   //This is the pololu device # you're connected too that is found in the config utility(converted to hex). I'm using #11 in this example
   Serial2.write(0xB);   //This is the pololu device # you're connected too that is found in the config utility(converted to hex). I'm using #11 in this example
-  Serial1.write(0x40 + (targetx & 0x1F)); //first half of the target, see the pololu jrk manual for more specifics
-  Serial2.write(0x40 + (targety & 0x1F)); //first half of the target, see the pololu jrk manual for more specifics
-  Serial1.write((targetx >> 5) & 0x7F);   //second half of the target, " " "
-  Serial2.write((targety >> 5) & 0x7F);   //second half of the target, " " "
+  Serial1.write(0x40 + (target_right & 0x1F)); //first half of the target, see the pololu jrk manual for more specifics
+  Serial2.write(0x40 + (target_left & 0x1F)); //first half of the target, see the pololu jrk manual for more specifics
+  Serial1.write((target_right >> 5) & 0x7F);   //second half of the target, " " "
+  Serial2.write((target_left >> 5) & 0x7F);   //second half of the target, " " "
  }
 
 boolean read_serial(){
