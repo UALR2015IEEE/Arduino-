@@ -14,7 +14,7 @@ void announce_sensors();
 int get_int(int chars = 1);
 void set_speed(int left, int right);
 boolean read_serial();
-int bound(int num, int zero, int dead, int max);
+int bound(int num, int zero, int dead, int top);
 
 //variable declarations
 unsigned long time = millis();
@@ -163,7 +163,7 @@ int get_int(int chars){
 
 void set_speed(int left, int right) {
     right = bound(right, 2048, 72, 150);
-    left = left(right, 2048, 72, 150);
+    left = bound(left, 2048, 72, 150);
     Serial.print(right);
     Serial.print(" ");
     Serial.print(left);
@@ -180,7 +180,7 @@ void set_speed(int left, int right) {
     Serial2.write((target_left >> 5) & 0x7F);   //second half of the target, " " "
  }
 
-int bound(int num, int zero, int dead, int max)
+int bound(int num, int zero, int dead, int top)
 {
     if(num == zero) return zero;
 
@@ -194,9 +194,9 @@ int bound(int num, int zero, int dead, int max)
         return zero+(dead*factor);
     }
 
-    if(difference > max)
+    if(difference > top)
     {
-        return zero+(max*factor);
+        return zero+(top*factor);
     }
 
     return num;
