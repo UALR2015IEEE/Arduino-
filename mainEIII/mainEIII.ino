@@ -7,7 +7,7 @@
 
 //function declarations
 float ping_median(NewPing* sensor);
-void stablize(int time_factor = 0);
+void stablize(unsigned long time_factor = 0);
 void rotate();
 void exec_command();
 void announce_sensors();
@@ -42,15 +42,15 @@ void setup(){
     sonrr = new NewPing(31, 30, 50);
     sonff = new NewPing(29, 28, 50);
 
-    Serial1.begin(9600);
-    Serial2.begin(9600);
+    Serial1.begin(115200);
+    Serial2.begin(115200);
     Serial.begin(115200);
     Serial.flush();
     Serial1.flush();
     Serial2.flush();
 
     set_speed(2048, 2048);
-    stablize();
+    stablize(1000);
 }
 
 void loop() {
@@ -80,7 +80,7 @@ float ping_median(NewPing* sensor){
     return avg;
 }
 
-void stablize(int time_factor){
+void stablize(unsigned long time_factor){
     boolean stable = false;
     float tolf;
     float tolr;
@@ -92,8 +92,19 @@ void stablize(int time_factor){
     float deltafactor;
     int initial_right = target_right;
     int initial_left = target_left;
-    unsigned int start_time = millis();
-    while(!stable){
+    unsigned long start_time = millis();
+    Serial.print("stable: ");
+    Serial.println(!stable);
+    while(stable == false){
+//        count += 1;
+//        Serial.print("Count: ");
+//        Serial.println(count);
+//        Serial.print("millis: " );
+//        Serial.println(millis());
+//        Serial.print("time diff ");
+//        Serial.println(millis() - start_time);
+//        Serial.print("stable: ");
+//        Serial.println(!stable);
         if (time_factor != 0 && millis() - start_time > time_factor){
             break;
         }
@@ -102,15 +113,38 @@ void stablize(int time_factor){
         tolr = ping_median(sonlr);
         torf = ping_median(sonrf);
 
-        float dLeft = (tolr/tolf)*(torf+torr)/(tolf+tolr);
-        float dright = (torr/torf)*(tolf+tolr)/(torf+torr);
-
-        if(abs(dLeft - dRight) < 0.1) stable = true;
-
-        set_speed(initial_left + 250*dLeft, initial_right + 250*dRight);
-
+        if( abs(tolf)<0.1 || abs(tolr)<0.1 || abs(torf)<0.1 || abs(torr)<0.1)
+        {
+          set_speed(initial_left, initial_right);
+        }
+        else {
+          float tLeft = tolr/tolf;
+          float tRight = torr/torf;
+          float dLeft = tLeft*tLeft*tLeft*(torf+torr)/(tolf+tolr);
+          float dRight = tRight*tRight*tRight*(tolf+tolr)/(torf+torr);
+          
+          dLeft = 1-(dLeft+(1-dLeft)*0.95);
+          dRight = 1-(dRight+(1-dRight)*0.95);  
+          
+          dLeft = dLeft * -1;
+          dRight = dRight * -1;
+          
+          Serial.print("dLeft: ");
+          Serial.println(dLeft);
+          Serial.print("dRight: ");
+          Serial.println(dRight);
+          
+          if(abs(dLeft - dRight) < 0.1)
+          {
+              stable = true;
+              set_speed(initial_left, initial_right);
+          }
+          else set_speed(initial_left+800*dLeft, initial_right+800*dRight);
+        }
+        target_left = initial_left;
+        target_right = initial_right;
     }
-    set_speed(initial_left, initial_right);
+
 }
 
 void rotate(){
@@ -118,9 +152,9 @@ void rotate(){
 }
 
 void exec_command(){
-    set_speed(2150, 2150);
+    set_speed(2400, 2400);
     while(true){
-        stablize(15);
+        stablize(150);
         Serial.println("Exit Loop");
     }
 }
@@ -136,7 +170,6 @@ void announce_sensors(){
     Serial.print(ping_median(sonrr));
     Serial.print(" ff ");
     Serial.print(ping_median(sonff));
-
     Serial.print("\n");
 }
 
@@ -146,11 +179,11 @@ int get_int(int chars){
 }
 
 void set_speed(int left, int right) {
-    right = bound(right, 2048, 72, 150);
-    left = bound(left, 2048, 72, 150);
-    Serial.print(right);
-    Serial.print(" ");
+    right = bound(right, 2048, 0, 800);
+    left = bound(left, 2048, 0, 800);
     Serial.print(left);
+    Serial.print(" ");
+    Serial.print(right);
     Serial.print("\n");
     target_right = right;
     target_left = left;
