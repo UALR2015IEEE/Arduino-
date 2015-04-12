@@ -7,7 +7,7 @@
 
 //function declarations
 float ping_median(NewPing* sensor);
-void stablize(unsigned long time_factor = 0);
+void stablize();
 void rotate();
 void exec_command();
 void announce_sensors();
@@ -24,6 +24,11 @@ boolean command_stat;
 byte dir;
 byte move_blocks;
 const int unit = 12;
+
+unsigned int cruise = 2200;
+unsigned int dead_zone = 0;
+unsigned int max_speed = 800;
+unsigned int zero = 2048;
 
 word target_right = 0;  //only pass this ints, i tried doing math in this and the remainder error screwed something up
 word target_left = 0;
@@ -49,8 +54,7 @@ void setup(){
     Serial1.flush();
     Serial2.flush();
 
-    set_speed(2048, 2048);
-    stablize(1000);
+    set_speed(zero, zero);
 }
 
 void loop() {
@@ -80,69 +84,35 @@ float ping_median(NewPing* sensor){
     return avg;
 }
 
-void stablize(unsigned long time_factor){
-    boolean stable = false;
-    float tolf;
-    float tolr;
-    float torf;
-    float torr;
-    float deltal;
-    float deltar;
-    float delta;
-    float deltafactor;
-    int initial_right = target_right;
-    int initial_left = target_left;
-    unsigned long start_time = millis();
-    Serial.print("stable: ");
-    Serial.println(!stable);
-    while(stable == false){
-//        count += 1;
-//        Serial.print("Count: ");
-//        Serial.println(count);
-//        Serial.print("millis: " );
-//        Serial.println(millis());
-//        Serial.print("time diff ");
-//        Serial.println(millis() - start_time);
-//        Serial.print("stable: ");
-//        Serial.println(!stable);
-        if (time_factor != 0 && millis() - start_time > time_factor){
-            break;
-        }
-        tolf = ping_median(sonlf);
-        torr = ping_median(sonrr);
-        tolr = ping_median(sonlr);
-        torf = ping_median(sonrf);
+void stablize(){
+    float tolf = ping_median(sonlf);
+    float tolr = ping_median(sonlr);
+    float torf = ping_median(sonrf);
+    float torr = ping_median(sonrr);
 
-        if( abs(tolf)<0.1 || abs(tolr)<0.1 || abs(torf)<0.1 || abs(torr)<0.1)
-        {
-          set_speed(initial_left, initial_right);
-        }
-        else {
-          float tLeft = tolr/tolf;
-          float tRight = torr/torf;
-          float dLeft = tLeft*tLeft*tLeft*(torf+torr)/(tolf+tolr);
-          float dRight = tRight*tRight*tRight*(tolf+tolr)/(torf+torr);
-          
-          dLeft = 1-(dLeft+(1-dLeft)*0.95);
-          dRight = 1-(dRight+(1-dRight)*0.95);  
-          
-          dLeft = dLeft * -1;
-          dRight = dRight * -1;
-          
-          Serial.print("dLeft: ");
-          Serial.println(dLeft);
-          Serial.print("dRight: ");
-          Serial.println(dRight);
-          
-          if(abs(dLeft - dRight) < 0.1)
-          {
-              stable = true;
-              set_speed(initial_left, initial_right);
-          }
-          else set_speed(initial_left+800*dLeft, initial_right+800*dRight);
-        }
-        target_left = initial_left;
-        target_right = initial_right;
+    if( abs(tolf)>0.1 && abs(tolr)>0.1 && abs(torf)>0.1 && abs(torr)>0.1)
+    {
+        float aLeft = tolr/tolf;
+        float aRight = torr/torf;
+        float pLeft = (torf+torr)/(tolf+tolr);
+        float pRight = (tolf+tolr)/(torf+torr);
+        float dLeft = aLeft*aLeft*pLeft*pLeft;
+        float dRight = aRight*aRight*pRight*pRight;
+        
+        dLeft = 1-(dLeft+(1-dLeft)*0.95);
+        dRight = 1-(dRight+(1-dRight)*0.95);  
+        
+        dLeft = dLeft * -1;
+        dRight = dRight * -1;
+        
+        Serial.print("dLeft: ");
+        Serial.println(dLeft);
+        Serial.print("dRight: ");
+        Serial.println(dRight);
+        
+        target_left = cruise+800*dLeft;
+        target_right = cruise+800*dRight;
+
     }
 
 }
@@ -151,11 +121,12 @@ void rotate(){
     stablize();
 }
 
+
 void exec_command(){
-    set_speed(2400, 2400);
+    set_speed(cruise, cruise);
     while(true){
-        stablize(150);
-        Serial.println("Exit Loop");
+        stablize();
+        set_speed(target_left, target_right);
     }
 }
 
@@ -179,8 +150,8 @@ int get_int(int chars){
 }
 
 void set_speed(int left, int right) {
-    right = bound(right, 2048, 0, 800);
-    left = bound(left, 2048, 0, 800);
+    right = bound(right, zero, dead_zone, max_speed);
+    left = bound(left, zero, dead_zone, max_speed);
     Serial.print(left);
     Serial.print(" ");
     Serial.print(right);
