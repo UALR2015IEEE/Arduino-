@@ -6,7 +6,7 @@
 #include <Serial>
 #include <TFT.h>;
 #include <math.h>
-#include <"HughesyShiftBrite.h">
+#include "HughesyShiftBrite.h"
 
 // setup TFT pins
 #define YP A2   // must be an analog pin, use "An" notation!
@@ -56,10 +56,10 @@ void setup(){
 //    pinMode(39, OUTPUT);
 //    digitalWrite(37, HIGH);
 //    digitalWrite(39, HIGH);
-    pinMode(44, OUTPUT)
+    pinMode(44, OUTPUT);
     digitalWrite(44, HIGH);
     sb = new HughesyShiftBrite(52, 50, 48, 46);
-    sb.sendColour(0, 0, 1023);
+    sb->sendColour(0, 0, 1023);
 
 
     sonlf = new NewPing(23, 22, 50);
@@ -127,8 +127,9 @@ void stablize(){
     float langle = -1*atan((lrc-lfc)/8.25)*180/3.14159;
     float avg_angle = (rangle+langle)/2.0;
 
-    if(abs(avg_angle)<1.0)
+    if(abs(avg_angle)<2.0)
     {
+        Serial.println("Cruising");
         target_left = cruise;
         target_right = cruise;
     }
@@ -136,26 +137,34 @@ void stablize(){
     {
         if(avg_angle > 0.0) //need to rotate left
         {
-            target_left = cruise;
+            Serial.println("Correcting to go left");
+            target_left = cruise-max_speed*0.05;
             target_right = cruise+max_speed*0.05;
         }
         else if(avg_angle < 0.0) //need to rotate right
         {
+            Serial.println("Correcting to go right");
             target_left = cruise+max_speed*0.05;
-            target_right = cruise;
+            target_right = cruise-max_speed*0.05;
         }
     }
     else {
-        target_left = cruise-max_speed*(avg_angle/30.0);
-        target_right = cruise+max_speed*(avg_angle/30.0);
+        Serial.println("Within angle, doing normal corrections");
+        target_left = cruise-max_speed*(avg_angle/180.0);
+        target_right = cruise+max_speed*(avg_angle/180.0);
     }
 
-    Serial.print("right: ");
+    
+    Serial.print("right: \t");    
     Serial.print(rangle);
-    Serial.print(" left: ");
+    Serial.print("\t left: \t");
     Serial.print(langle);
-    Serial.print(" average: ");
+    Serial.print("\t average: \t");
     Serial.println((rangle+langle)/2.0);
+    Serial.print("left speed: \t");
+    Serial.print(target_left);
+    Serial.print(" \tright speed: \t");
+    Serial.println(target_right);
 
 //    if( abs(tolf)>0.1 && abs(tolr)>0.1 && abs(torf)>0.1 && abs(torr)>0.1)
 //    {
@@ -222,10 +231,10 @@ int get_int(int chars){
 void set_speed(int left, int right) {
     right = bound(right, zero, dead_zone, max_speed);
     left = bound(left, zero, dead_zone, max_speed);
-    Serial.print(left);
-    Serial.print(" ");
-    Serial.print(right);
-    Serial.print("\n");
+//    Serial.print(left);
+//    Serial.print(" ");
+//    Serial.print(right);
+//    Serial.print("\n");
     target_right = right;
     target_left = left;
     Serial1.write(0xAA); //tells the controller we're starting to send it commands
