@@ -3,7 +3,16 @@
 //Includes
 #include <NewPing.h>
 #include <millis>;
-#include <Serial>;
+#include <Serial>
+#include <TFT.h>;
+#include <math.h>
+
+// setup TFT pins
+#define YP A2   // must be an analog pin, use "An" notation!
+#define XM A1   // must be an analog pin, use "An" notation!
+#define YM 54   // can be a digital pin, this is A0
+#define XP 57   // can be a digital pin, this is A3 
+
 
 //function declarations
 float ping_median(NewPing* sensor);
@@ -40,7 +49,10 @@ NewPing* sonrr;
 NewPing* sonff;
 
 void setup(){
-
+//    pinMode(37, OUTPUT);
+//    pinMode(39, OUTPUT);
+//    digitalWrite(37, HIGH);
+//    digitalWrite(39, HIGH);
     sonlf = new NewPing(23, 22, 50);
     sonrf = new NewPing(25, 24, 50);
     sonlr = new NewPing(27, 26, 50);
@@ -53,6 +65,12 @@ void setup(){
     Serial.flush();
     Serial1.flush();
     Serial2.flush();
+    
+    Tft.init();  //init TFT library
+    Tft.drawString("UALR",0,25,4,WHITE);
+    Tft.drawString("Robotics",25,80,3,WHITE);
+    Tft.drawString("^_^",30 ,200,8,WHITE);
+
 
     set_speed(zero, zero);
 }
@@ -72,7 +90,7 @@ float ping_median(NewPing* sensor){
     int pini;
     for(int i = 0; i < 3; i++){
         pini = sensor->ping();
-        delay(15);
+        delay(23);
         if(pini == 0){
             pini = sensor->ping();
             if(pini == 0){
@@ -89,31 +107,74 @@ void stablize(){
     float tolr = ping_median(sonlr);
     float torf = ping_median(sonrf);
     float torr = ping_median(sonrr);
+    float toff = ping_median(sonff);
 
-    if( abs(tolf)>0.1 && abs(tolr)>0.1 && abs(torf)>0.1 && abs(torr)>0.1)
+    float rfc = torf / US_ROUNDTRIP_CM;
+    float rrc = torr / US_ROUNDTRIP_CM;
+    float lfc = tolf / US_ROUNDTRIP_CM;
+    float lrc = tolr / US_ROUNDTRIP_CM + 0.5;
+    
+    float rangle = atan((rrc-rfc)/8.0)*180/3.14159;
+    float langle = -1*atan((lrc-lfc)/8.25)*180/3.14159;
+    float avg_angle = (rangle+langle)/2.0;
+    
+    if(abs(avg_angle)<1.0)
     {
-        float aLeft = tolr/tolf;
-        float aRight = torr/torf;
-        float pLeft = (torf+torr)/(tolf+tolr);
-        float pRight = (tolf+tolr)/(torf+torr);
-        float dLeft = aLeft*aLeft*pLeft*pLeft;
-        float dRight = aRight*aRight*pRight*pRight;
-        
-        dLeft = 1-(dLeft+(1-dLeft)*0.95);
-        dRight = 1-(dRight+(1-dRight)*0.95);  
-        
-        dLeft = dLeft * -1;
-        dRight = dRight * -1;
-        
-        Serial.print("dLeft: ");
-        Serial.println(dLeft);
-        Serial.print("dRight: ");
-        Serial.println(dRight);
-        
-        target_left = cruise+800*dLeft;
-        target_right = cruise+800*dRight;
-
+        target_left = cruise;
+        target_right = cruise;
     }
+    if(abs(avg_angle)>15.0)
+    {
+        if(avg_angle > 0.0) //need to rotate left
+        {
+            target_left = cruise;
+            target_right = cruise+max_speed*0.05;
+        }
+        else if(avg_angle < 0.0) //need to rotate right
+        {
+            target_left = cruise+max_speed*0.05;
+            target_right = cruise;            
+        }
+    }
+    else {
+        target_left = cruise-max_speed*(avg_angle/30.0);
+        target_right = cruise+max_speed*(avg_angle/30.0);
+    }
+    
+    Serial.print("right: ");    
+    Serial.print(rangle);
+    Serial.print(" left: ");
+    Serial.print(langle);
+    Serial.print(" average: ");
+    Serial.println((rangle+langle)/2.0);
+
+//    if( abs(tolf)>0.1 && abs(tolr)>0.1 && abs(torf)>0.1 && abs(torr)>0.1)
+//    {
+//        float aLeft = tolr/tolf;
+//        float aRight = torr/torf;
+//        float pLeft = (torf+torr)/(tolf+tolr);
+//        float pRight = (tolf+tolr)/(torf+torr);
+//        float dLeft = aLeft*aLeft*pLeft*pLeft;
+//        float dRight = aRight*aRight*pRight*pRight;
+//        
+//        dLeft = 1-(dLeft+(1-dLeft)*0.95);
+//        dRight = 1-(dRight+(1-dRight)*0.95);  
+//        
+//        dLeft = dLeft * -1;
+//        dRight = dRight * -1;
+//        
+//        Serial.print("dLeft: ");
+//        Serial.println(dLeft);
+//        Serial.print("dRight: ");
+//        Serial.println(dRight);
+//        
+//        target_left = 2048;
+//        target_right = 2048;
+//        
+//        //target_left = cruise+800*dLeft;
+//        //target_right = cruise+800*dRight;
+//
+//    }
 
 }
 
