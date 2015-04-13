@@ -4,7 +4,7 @@
 #include <NewPing.h>
 #include <millis>;
 #include <Serial>
-#include <TFT.h>;
+//#include <TFT.h>;
 #include <math.h>
 #include "HughesyShiftBrite.h"
 
@@ -14,11 +14,11 @@
 #define YM 54   // can be a digital pin, this is A0
 #define XP 57   // can be a digital pin, this is A3
 
-#define srr 0
-#define slf 1
-#define sff 2
-#define slr 3
-#define srf 4
+#define slf 0
+#define srr 1
+#define slr 2
+#define srf 3
+#define sff 4
 
 //function declarations
 float ping_median(NewPing* sensor, float avg, int i, int j);
@@ -102,10 +102,12 @@ void setup(){
     sensors[slr] = sonlr;
     sensors[srf] = sonrf;
     
-    Tft.init();  //init TFT library
-    Tft.drawString("UALR",0,25,4,WHITE);
-    Tft.drawString("Robotics",25,80,3,WHITE);
-    Tft.drawString("^_^",30 ,200,8,WHITE);
+//    Tft.init();  //init TFT library
+//    Tft.drawString("UALR",0,25,4,WHITE);
+//    Tft.drawString("Robotics",25,80,3,WHITE);
+//    Tft.drawString("^_^",30 ,200,8,WHITE);
+
+    Serial.println("Setup complete");
 }
 
 void loop() {
@@ -123,11 +125,14 @@ float ping_median(NewPing* sensor, float avg, int i, int n)
   
     float pini = sensor->ping();
     if(pini == 0){
-        Serial.print("F: " );
+        Serial.print("F1: ");
         Serial.print(n);
-        Serial.println();
+        Serial.print(" ");
         pini = sensor->ping();
         if(pini == 0){
+            Serial.print("F2: ");
+            Serial.print(n);
+            Serial.print(" ");
             pini = sensor->ping();
         }
     }
@@ -141,16 +146,24 @@ void stablize(){
     float avg[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
     
     for(int i = 0; i < 3; i++){
-        for(int j = 0; j < 5; j++)
+        for(int j = 0; j < 4; j++)
         {
+            //unsigned long t0 = millis();
             avg[j] = ping_median(sensors[j], avg[j], i, j);
+            //unsigned long t1 = millis();
+            //Serial.print(t1-t0);
+            //Serial.print("\t");
+            delay(2);
         }
+        //Serial.println();
     }
+
+    //Serial.println();
 
     float rfc = avg[srf] / US_ROUNDTRIP_CM;
     float rrc = avg[srr] / US_ROUNDTRIP_CM;
     float lfc = avg[slf] / US_ROUNDTRIP_CM;
-    float lrc = avg[slr] / US_ROUNDTRIP_CM + 0.5;
+    float lrc = avg[slr] / US_ROUNDTRIP_CM + 0.5; 
 
     float rangle = atan((rrc-rfc)/8.0)*180/3.14159;
     float langle = -1*atan((lrc-lfc)/8.25)*180/3.14159;
@@ -158,9 +171,11 @@ void stablize(){
     
     float correction_speed = 0.0;
     
+    Serial.println(avg_angle);
+    
     if(abs(avg_angle)>3.0)
     {
-      correction_speed = (avg_angle/30.0)*max_speed*0.5;
+      correction_speed = (avg_angle/30.0)*(cruise-zero)*0.5;
       
       l_vel = (cruise-zero)-correction_speed;
       r_vel = (cruise-zero)+correction_speed;
@@ -260,6 +275,9 @@ void stablize(){
 //        //target_right = cruise+800*dRight;
 //
 //    }
+
+    l_vel = 0.0;
+    r_vel = 0.0;
 
 }
 
