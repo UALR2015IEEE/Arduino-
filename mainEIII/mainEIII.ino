@@ -123,16 +123,16 @@ void setup(){
     sensors[srf] = sonrf;
     
     Tft.init();  //init TFT library
-    //Tft.drawString("UALR",0,25,4,WHITE);
-    //Tft.drawString("Robotics",25,80,3,WHITE);
-    //Tft.drawString("^_^",30 ,200,8,WHITE);
+    Tft.drawString("UALR",0,25,4,WHITE);
+    Tft.drawString("Robotics",25,80,3,WHITE);
+    Tft.drawString("^_^",30 ,200,8,WHITE);
 
     Tft.paintScreenBlack();
 
     p0x = 0.0;
     p0y = 4.0;
-    r0 = 10.0*3.14159/180.0;
-    p1x = 6.0;
+    r0 = 25.0*3.14159/180.0;
+    p1x = 7.0;
     p1y = 0.0;
     r1 = 0.0;  
 
@@ -140,7 +140,7 @@ void setup(){
 }
 
 void loop() {
-    t += 0.1;
+    t += 0.01;
     if(t >= 1) t = 0.0;
     p_curve();
     draw();
@@ -149,7 +149,11 @@ void loop() {
         //announce_sensors();
         
         if (command_stat){
+            //p1x += 1;
             Tft.paintScreenBlack();
+            Tft.drawString("UALR",0,25,4,WHITE);
+            Tft.drawString("Robotics",25,80,3,WHITE);
+            Tft.drawString("^_^",30 ,200,8,WHITE);            
             mode += 1;
             if(mode > 1) mode = 0;
             //exec_command();
@@ -161,15 +165,21 @@ void draw()
 {
     if(mode == 0)
     {
-        int x = px;
-        int y = py;
-        Tft.setPixel(x, y, WHITE);
+        int x = px*20;
+        int y = py*20;
+        Tft.setPixel(x, 320-y, WHITE);
     }
     if(mode == 1)
     {
-        int x = dpx;
-        int y = dpy;
-        Tft.setPixel(x, y, WHITE);        
+//        Serial.print("t:\t");
+//        Serial.print(t);
+//        Serial.print("\tdpx:\t");
+//        Serial.print(dpx);
+//        Serial.print("\tdpy:\t");
+//        Serial.println(dpy);
+        int x = dpx*20;
+        int y = dpy*20;
+        Tft.setPixel(x, 320-y, WHITE);        
     }
 }
 
