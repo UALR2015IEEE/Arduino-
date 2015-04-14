@@ -158,6 +158,7 @@ public:
     unsigned char getData(void);
     unsigned int readRegister(unsigned int index);
 
+    void paintScreenBlack (void);
     void setXY(unsigned int poX, unsigned int poY);
     void setPixel(unsigned int poX, unsigned int poY,unsigned int color);
     void drawLine(unsigned int x0,unsigned int y0,unsigned int x1,unsigned int y1,unsigned int color);

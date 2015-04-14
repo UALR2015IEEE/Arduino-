@@ -239,6 +239,17 @@ void  TFT::init (void)
     }
 }
 
+void TFT::paintScreenBlack(void)
+{
+    for(unsigned char i=0;i<2;i++)
+    {
+        for(unsigned int f=0;f<38400;f++)
+        {
+            sendData(BLACK);
+        }
+    }
+}
+
 void TFT::exitStandBy(void)
 {
     sendCommand(0x0010);

@@ -4,7 +4,7 @@
 #include <NewPing.h>
 #include <millis>;
 #include <Serial>
-//#include <TFT.h>;
+#include <TFT.h>;
 #include <math.h>
 #include "HughesyShiftBrite.h"
 
@@ -16,8 +16,8 @@
 
 #define slf 0
 #define srr 1
-#define slr 2
-#define srf 3
+#define srf 2
+#define slr 3
 #define sff 4
 
 //function declarations
@@ -30,8 +30,28 @@ int get_int(int chars = 1);
 void set_speed(int left, int right);
 boolean read_serial();
 int bound(int num, int zero, int dead, int top);
+void p_curve();
+void draw();
 
 //variable declarations
+int mode = 0;
+
+float p0x = 0.0;
+float p0y = 0.0;
+float p1x = 0.0;
+float p1y = 0.0;
+float r0 = 0.0;
+float r1 = 0.0;
+float px = 0.0;
+float py = 0.0;
+float pr = 0.0;
+float dpx = 0.0;
+float dpy = 0.0;
+float dpr = 0.0;
+float apx = 0.0;
+float apy = 0.0;
+float t = 0.0;
+
 unsigned long time = millis();
 unsigned long old_time = time;
 unsigned long elapsed = 0;
@@ -43,10 +63,10 @@ byte dir;
 byte move_blocks;
 const int unit = 12;
 
-unsigned int cruise = 2600;
-unsigned int dead_zone = 0;
-unsigned int max_speed = 400;
-unsigned int zero = 2048;
+int cruise = 2200;
+int dead_zone = 0;
+int zero = 2048;
+int max_speed = cruise-zero;
 
 float r_acc = 0.0;
 float r_vel = 0.0;
@@ -56,7 +76,7 @@ float l_acc = 0.0;
 float l_vel = 0.0;
 float l_pos = 0.0;
 
-float a_max = 50.0;
+float a_max = max_speed/4;
 
 word target_right = 0;  //only pass this ints, i tried doing math in this and the remainder error screwed something up
 word target_left = 0;
@@ -102,22 +122,82 @@ void setup(){
     sensors[slr] = sonlr;
     sensors[srf] = sonrf;
     
-//    Tft.init();  //init TFT library
-//    Tft.drawString("UALR",0,25,4,WHITE);
-//    Tft.drawString("Robotics",25,80,3,WHITE);
-//    Tft.drawString("^_^",30 ,200,8,WHITE);
+    Tft.init();  //init TFT library
+    //Tft.drawString("UALR",0,25,4,WHITE);
+    //Tft.drawString("Robotics",25,80,3,WHITE);
+    //Tft.drawString("^_^",30 ,200,8,WHITE);
+
+    Tft.paintScreenBlack();
+
+    p0x = 0.0;
+    p0y = 4.0;
+    r0 = 10.0*3.14159/180.0;
+    p1x = 6.0;
+    p1y = 0.0;
+    r1 = 0.0;  
 
     Serial.println("Setup complete");
 }
 
 void loop() {
+    t += 0.1;
+    if(t >= 1) t = 0.0;
+    p_curve();
+    draw();
     if (Serial.available()){
         command_stat = read_serial();
         //announce_sensors();
+        
         if (command_stat){
-            exec_command();
+            Tft.paintScreenBlack();
+            mode += 1;
+            if(mode > 1) mode = 0;
+            //exec_command();
         }
     }
+}
+
+void draw()
+{
+    if(mode == 0)
+    {
+        int x = px;
+        int y = py;
+        Tft.setPixel(x, y, WHITE);
+    }
+    if(mode == 1)
+    {
+        int x = dpx;
+        int y = dpy;
+        Tft.setPixel(x, y, WHITE);        
+    }
+}
+
+void p_curve()
+{
+    float t2 = t*t;
+    float t3 = t2*t;
+    float h0 = (2*t3)-(3*t2)+1;
+    float h1 = (t3)-(2*t2)+t;
+    float h2 = (-2*t3)+(3*t2);
+    float h3 = (t3)-(t2);
+    float dh0 = (6*t2)-(6*t);
+    float dh1 = (3*t2)-(4*t)+1;
+    float dh2 = (-6*t2)+(6*t);
+    float dh3 = (3*t2)-(2*t);
+    float ddh0 = (12*t)-6;
+    float ddh1 = (6*t)-4;
+    float ddh2 = (-12*t)+6;
+    float ddh3 = (6*t)-2;    
+    float d = sqrt((p1x-p0x)*(p1x-p0x)+(p1y-p0y)*(p1y-p0y));
+    px = h0*p0x+h1*d*cos(r0)+h2*p1x+h3*d*cos(r1);
+    py = h0*p0y+h1*d*sin(r0)+h2*p1y+h3*d*sin(r1);
+    dpx = dh0*p0x+dh1*d*cos(r0)+dh2*p1x+dh3*d*cos(r1);
+    dpy = dh0*p0y+dh1*d*sin(r0)+dh2*p1y+dh3*d*sin(r1);
+    apx = ddh0*p0x+ddh1*d*cos(r0)+ddh2*p1x+ddh3*d*cos(r1);
+    apy = ddh0*p0y+ddh1*d*sin(r0)+ddh2*p1y+ddh3*d*sin(r1);
+    pr = atan(dpy/dpx);
+    dpr = atan(apy/apx);
 }
 
 float ping_median(NewPing* sensor, float avg, int i, int n)
@@ -140,10 +220,13 @@ float ping_median(NewPing* sensor, float avg, int i, int n)
     return avg;
 }
 
+
+
 void stablize(){
     unsigned long start = millis();
     
     float avg[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    float dist[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
     
     for(int i = 0; i < 3; i++){
         for(int j = 0; j < 4; j++)
@@ -158,95 +241,118 @@ void stablize(){
         //Serial.println();
     }
 
-    //Serial.println();
-
-    float rfc = avg[srf] / US_ROUNDTRIP_CM;
-    float rrc = avg[srr] / US_ROUNDTRIP_CM;
-    float lfc = avg[slf] / US_ROUNDTRIP_CM;
-    float lrc = avg[slr] / US_ROUNDTRIP_CM + 0.5; 
-
-    float rangle = atan((rrc-rfc)/8.0)*180/3.14159;
-    float langle = -1*atan((lrc-lfc)/8.25)*180/3.14159;
-    float avg_angle = (rangle+langle)/2.0;
-    
-    float correction_speed = 0.0;
-    
-    Serial.println(avg_angle);
-    
-    if(abs(avg_angle)>3.0)
+//    unsigned long t1 = millis();
+//    Serial.print(t1-start);
+//    Serial.print("\t");
+//
+    for(int i = 0; i < 4; i++)
     {
-      correction_speed = (avg_angle/30.0)*(cruise-zero)*0.5;
+        dist[i] = avg[i] / US_ROUNDTRIP_CM;
+        //Serial.print(dist[i]);
+        //Serial.print("\t");
+    }
+    
+    float l_dist = (dist[slf] + dist[slr])/2.0;
+    float r_dist = (dist[srf] + dist[srr])/2.0;
+    float r_angle = atan((dist[srr]-dist[srf])/8.0)*180/3.14159;
+    float l_angle = -1*atan((dist[slr]-dist[slf])/8.25)*180/3.14159;
+    
+    float angle = 0.0;
+    
+    if(abs(r_dist - l_dist) > 2)
+    {    
+        if(r_dist > l_dist) angle = r_angle;
+        else angle = l_angle;
+    }   
+    else angle = (r_angle+l_angle)/2.0;
+    
+    //float correction_speed = 0.0;
+    
+    //Serial.println(angle);
+    //Serial.println("\n");
+    
+    //if(abs(angle)>3.0)
+    //{
+      //correction_speed = (angle/30.0)*(cruise-zero)*0.5;
       
-      l_vel = (cruise-zero)-correction_speed;
-      r_vel = (cruise-zero)+correction_speed;
+      //l_vel = (cruise-zero)-correction_speed;
+      //r_vel = (cruise-zero)+correction_speed;
+        
+    Serial.print("l_dist:\t");
+    Serial.print(l_dist);
+    Serial.print("\tr_dist:\t");
+    Serial.print(r_dist);
+    Serial.print("\tdifference:\t");
+    Serial.println(abs(r_dist-l_dist));
+    
+    if(abs(angle)>3.0)
+    {
       
-//    if(abs(avg_angle)>15.0)
-//    {
-//        if(avg_angle > 0.0) //need to rotate left
-//        {
-//            Serial.println("Correcting to go left");
-//            l_acc -= 5.0;
-//            r_acc += 5.0;
-//            //target_left = cruise-max_speed*0.05;
-//            //target_right = cruise+max_speed*0.05;
-//        }
-//        else if(avg_angle < 0.0) //need to rotate right
-//        {
-//            Serial.println("Correcting to go right");
-//            l_acc += 5.0;
-//            r_acc -= 5.0;
-//            //target_left = cruise+max_speed*0.05;
-//            //target_right = cruise-max_speed*0.05;
-//        }
-//    }
-
-//        if(avg_angle > 0.0)
-//        {
-//            Serial.println("Turning left");
-//            l_acc -= avg_angle/15.0;
-//            r_acc += avg_angle/15.0;
-//        }  
-//        else {
-//            Serial.println("Turning right");
-//            l_acc -= avg_angle/15.0;
-//            r_acc += avg_angle/15.0;
-//        }
-        //target_left = cruise-max_speed*(avg_angle/180.0);
-        //target_right = cruise+max_speed*(avg_angle/180.0);
+        //if(angle > 0.0) Serial.println("Correction to go left");
+        //if(angle < 0.0) Serial.println("Correction to go right");
+        
+        //Serial.print("acc delta: ");
+        //Serial.print((angle/30.0)*a_max*abs((l_vel+1)/max_speed)); 
+        //Serial.println();    
+        
+        l_acc -= (angle/30.0)*a_max*abs((l_vel+1)/max_speed);
+        r_acc += (angle/30.0)*a_max*abs((r_vel+1)/max_speed);
+      
+        //target_left = cruise-max_speed*(angle/180.0);
+        //target_right = cruise+max_speed*(angle/180.0);
+    }
+    else if( (l_dist - r_dist) > 2.0 && angle > -2.0) //need to move more to the left
+    {
+        //Serial.println("\nAngle's fine, moving toward the left");
+        //Serial.print("acc delta: ");
+        Serial.print((abs(angle))*a_max*abs((l_vel+1)/max_speed)); 
+        Serial.println();
+        
+        l_acc -= (abs(angle))*a_max*abs((l_vel+1)/max_speed);
+        r_acc += (abs(angle))*a_max*abs((r_vel+1)/max_speed);        
+    } else if( (r_dist - l_dist) > 2.0 && angle < 2.0) //need to move more to the right
+    {
+        //Serial.println("Angle's fine, moving toward the right");      
+        //Serial.print("\nacc delta: ");
+        Serial.print((abs(angle))*a_max*abs((l_vel+1)/max_speed));   
+        Serial.println();
+        
+        l_acc += (abs(angle))*a_max*abs((l_vel+1)/max_speed);
+        r_acc -= (abs(angle))*a_max*abs((r_vel+1)/max_speed);        
     }
     else
     {
-      l_acc = 0.0;
-      r_acc = 0.0;      
-      l_vel = max_speed / 3.0;
-      r_vel = max_speed / 3.0;      
+        if(r_vel > max_speed) r_acc -= 15.0;
+        else r_acc += 15.0;
+        if(l_vel > max_speed) l_acc -= 15.0;
+        else l_acc += 15.0;   
     }
 
-//    if(r_vel > cruise-zero) r_acc -= 5.0;
-//    if(l_vel > cruise-zero) l_acc -= 5.0;
-//    if(r_vel < cruise-zero) r_acc += 5.0;
-//    if(l_vel < cruise-zero) l_acc += 5.0;
-//
-//    if(l_acc > a_max) l_acc = a_max;
-//    if(l_acc < -a_max) l_acc = -a_max;
-//    if(r_acc > a_max) r_acc = a_max;
-//    if(r_acc < -a_max) r_acc = -a_max;
+    if(r_vel > max_speed) r_vel = max_speed;
+    if(r_vel < 0) r_vel = 0;
+    if(l_vel > max_speed) l_vel = max_speed;
+    if(l_vel < 0) l_vel = 0;
     
-//    Serial.print("right: \t");    
-//    Serial.print(rangle);
-//    Serial.print("\t left: \t");
-//    Serial.print(langle);
-//    Serial.print("\t average: \t");
-//    Serial.println((rangle+langle)/2.0);
-//    Serial.print("left speed: \t");
-//    Serial.print(l_vel);
-//    Serial.print(" \tleft acc: \t");
-//    Serial.println(l_acc);
-//    Serial.print("right speed: \t");
-//    Serial.print(r_vel);
-//    Serial.print(" \tright acc: \t");
-//    Serial.println(r_acc);
-//    Serial.println();
+    if(l_acc > a_max) l_acc = a_max;
+    if(l_acc < -a_max) l_acc = -a_max;
+    if(r_acc > a_max) r_acc = a_max;
+    if(r_acc < -a_max) r_acc = -a_max;
+    
+    Serial.print("\nright: \t");    
+    Serial.print(r_angle);
+    Serial.print("\t left: \t");
+    Serial.print(l_angle);
+    Serial.print("\t average: \t");
+    Serial.println(angle);
+    Serial.print("left speed: \t");
+    Serial.print(l_vel);
+    Serial.print(" \tleft acc: \t");
+    Serial.println(l_acc);
+    Serial.print("right speed: \t");
+    Serial.print(r_vel);
+    Serial.print(" \tright acc: \t");
+    Serial.println(r_acc);
+    Serial.println();
 
 //    if( abs(tolf)>0.1 && abs(tolr)>0.1 && abs(torf)>0.1 && abs(torr)>0.1)
 //    {
@@ -275,9 +381,6 @@ void stablize(){
 //        //target_right = cruise+800*dRight;
 //
 //    }
-
-    l_vel = 0.0;
-    r_vel = 0.0;
 
 }
 
@@ -315,8 +418,11 @@ int get_int(int chars){
 }
 
 void set_speed(int left, int right) {
-    old_time = millis();
-    elapsed = old_time - time;
+    old_time = time;
+    time = millis();
+    elapsed = time - old_time;
+    Serial.print("\nelapsed:\t");
+    Serial.println(elapsed);
     r_vel = r_vel + r_acc*elapsed/1000.0;
     l_vel = l_vel + l_acc*elapsed/1000.0;
     right = bound(r_vel+zero, zero, dead_zone, max_speed);
@@ -325,6 +431,8 @@ void set_speed(int left, int right) {
 //    Serial.print(" ");
 //    Serial.print(right);
 //    Serial.print("\n");
+    right = zero;
+    left = zero;
     target_right = right;
     target_left = left;
     Serial1.write(0xAA); //tells the controller we're starting to send it commands
