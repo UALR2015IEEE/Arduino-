@@ -2,10 +2,9 @@
 
 //Includes
 #include <NewPing.h>
-#include <millis>;
-#include <Serial>
-#include <TFT.h>;
+#include <TFT.h>
 #include <math.h>
+#include <TouchScreen.h>
 #include "HughesyShiftBrite.h"
 
 // setup TFT pins
@@ -13,6 +12,9 @@
 #define XM A1   // must be an analog pin, use "An" notation!
 #define YM 54   // can be a digital pin, this is A0
 #define XP 57   // can be a digital pin, this is A3
+
+TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
+
 
 #define slf 0
 #define srr 1
@@ -137,6 +139,7 @@ void setup(){
     r1 = 0.0;  
 
     Serial.println("Setup complete");
+    while(ts.pressure() < ts.pressureThreshhold);
 }
 
 void loop() {
