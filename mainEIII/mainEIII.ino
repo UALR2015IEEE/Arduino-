@@ -34,9 +34,19 @@ boolean read_serial();
 int bound(int num, int zero, int dead, int top);
 void p_curve();
 void draw();
+void set_speed_angle(float v, float a);
+float cm_to_speed(float v);
+void run();
 
 //variable declarations
 int mode = 0;
+int total_loops = 200;
+int loops = 0;
+int opx;
+int opy;
+float tracking_x = 0.0;
+float tracking_y = 0.0;
+float tracking_r = 0.0;
 
 float p0x = 0.0;
 float p0y = 0.0;
@@ -53,6 +63,7 @@ float dpr = 0.0;
 float apx = 0.0;
 float apy = 0.0;
 float t = 0.0;
+float v = 0.0;
 
 unsigned long time = millis();
 unsigned long old_time = time;
@@ -125,42 +136,164 @@ void setup(){
     sensors[srf] = sonrf;
     
     Tft.init();  //init TFT library
-    Tft.drawString("UALR",0,25,4,WHITE);
-    Tft.drawString("Robotics",25,80,3,WHITE);
-    Tft.drawString("^_^",30 ,200,8,WHITE);
+//    Tft.drawString("UALR",0,25,4,WHITE);
+//    Tft.drawString("Robotics",25,80,3,WHITE);
+//    Tft.drawString("^_^",30 ,200,8,WHITE);
 
-    Tft.paintScreenBlack();
+    p0x = 1.0;
+    p0y = 1.0;
+    r0 = 45.0*3.14159/180.0;
+    p1x = 35.0;
+    p1y = 1.0;
+    r1 = 0.0*3.14159/180.0;
 
-    p0x = 0.0;
-    p0y = 4.0;
-    r0 = 25.0*3.14159/180.0;
-    p1x = 7.0;
-    p1y = 0.0;
-    r1 = 0.0;  
+    tracking_x = p0x;
+    tracking_y = p0y;
+    tracking_r = r0;
+
+    opx = p0x*20;
+    opy = p0y*20;
+
+    Tft.drawVerticalLine(220,0,320,WHITE);
+    Tft.drawHorizontalLine(0,300,240,WHITE);
+    for(int x = 0; x < 240; x += 20)
+    {
+        Tft.setPixel(x, 299, WHITE);
+    }
+    for(int y = 0; y < 320; y += 20)
+    {
+        Tft.setPixel(219, y, WHITE);
+    }
+    
+    Tft.drawCircle(220-(p0y*20), 300-(p0x*20), 5, RED);
+    Tft.drawCircle(220-(p1y*20), 300-(p1x*20), 5, BLUE);
+    Tft.drawLine(220-(p0y*20), 300-(p0x*20), 220-((p0y+2*sin(r0))*20), 300-((p0x+2*cos(r0))*20), RED);
+    Tft.drawLine(220-(p1y*20), 300-(p1x*20), 220-((p1y+2*sin(r1))*20), 300-((p1x+2*cos(r1))*20), BLUE);    
 
     Serial.println("Setup complete");
     while(ts.pressure() < ts.pressureThreshhold);
+    
+    p_curve();
+    set_speed_angle(v, pr);
+    old_time = millis();    
+    
 }
 
 void loop() {
-    t += 0.01;
-    if(t >= 1) t = 0.0;
-    p_curve();
-    draw();
+//    t += 0.01;
+//    if(t >= 1) t = 0.0;
+//    p_curve();
+//    draw();
+//    set_speed_angle(15, 3.1415926/8.0);
+    run();
     if (Serial.available()){
         command_stat = read_serial();
-        //announce_sensors();
-        
+//        announce_sensors();
+//        
         if (command_stat){
-            //p1x += 1;
-            Tft.paintScreenBlack();
-            Tft.drawString("UALR",0,25,4,WHITE);
-            Tft.drawString("Robotics",25,80,3,WHITE);
-            Tft.drawString("^_^",30 ,200,8,WHITE);            
-            mode += 1;
-            if(mode > 1) mode = 0;
-            //exec_command();
+//            p0x += 1;
+//            Tft.paintScreenBlack();
+//            Tft.drawVerticalLine(20,0,320,WHITE);
+//            Tft.drawHorizontalLine(0,160,240,WHITE);
+//            for(int x = 0; x < 240; x += 20)
+//            {
+//                Tft.setPixel(x, 159, WHITE);
+//            }
+//            for(int y = 0; y < 320; y += 20)
+//            {
+//                Tft.setPixel(21, y, WHITE);
+//            }
+//            Tft.drawCircle(20+(p0x*20), 160-(p0y*20), 5, RED);
+//            Tft.drawCircle(20+(p1x*20), 160-(p1y*20), 5, BLUE);
+//            Tft.drawLine(20+(p0x*20), 160-(p0y*20), 20+((p0x+2*cos(r0))*20), 160-((p0y+2*sin(r0))*20), RED);
+//            Tft.drawLine(20+(p1x*20), 160-(p1y*20), 20+((p1x+2*cos(r1))*20), 160-((p1y+2*sin(r1))*20), BLUE);               
+//            Tft.drawString("UALR",0,25,4,WHITE);
+//            Tft.drawString("Robotics",25,80,3,WHITE);
+//            Tft.drawString("^_^",30 ,200,8,WHITE);
+//            mode += 1;
+//            if(mode > 1) mode = 0;
+//            //exec_command();
         }
+    }
+}
+
+void run()
+{
+  
+    //10s run time
+    time = millis();
+    
+    if(time - old_time > 10 && loops <= total_loops)
+    {
+        t += 1.0/total_loops;
+        p_curve();        
+        set_speed_angle(v, pr);
+        draw();
+        loops++;
+        tracking_x = tracking_x + dpx * (time - old_time)/1000.0;
+        tracking_y = tracking_y + dpy * (time - old_time)/1000.0;
+        tracking_r = tracking_r + dpr * (time - old_time)/1000.0;
+        Serial.print("t: ");
+        Serial.println(time - old_time);
+        Serial.print("TX: ");
+        Serial.print(tracking_x);
+        Serial.print("\tTY: ");
+        Serial.println(tracking_y);      
+        Serial.print("PX: ");
+        Serial.print(px);
+        Serial.print("\tPY: ");
+        Serial.println(py);          
+        old_time = time;
+    }
+    
+    if(loops == total_loops)
+    {
+        set_speed(zero, zero);
+        loops++;
+    }
+    
+}
+
+float cm_to_speed(float v)
+{
+    return (v-10.0735)/0.029695;
+}
+
+void set_speed_angle(float v, float a)
+{
+    float r = abs(v/a); 
+    float r_inner = r - 8.75;
+    float r_outer = r + 8.75;
+    float v_inner = r_inner * abs(a);
+    float v_outer = r_outer * abs(a);
+    
+    Serial.print("v: ");
+    Serial.print(v);
+    Serial.print("\ta: ");
+    Serial.print(a*180/3.14159);
+    Serial.print("\tr: ");
+    Serial.print(r);
+    Serial.print("\tr_inner ");
+    Serial.print(r_inner);
+    Serial.print("\tr_outer ");
+    Serial.print(r_outer);
+    Serial.print("\tv_inner ");
+    Serial.print(v_inner);
+    Serial.print("\tv_outer ");
+    Serial.print(v_outer);
+    Serial.print("\tcm_inner ");
+    Serial.print(cm_to_speed(v_inner)+zero);
+    Serial.print("\tcm_outer ");
+    Serial.print(cm_to_speed(v_outer)+zero);
+    Serial.println();
+
+    if(a > 0.0) //rotate ccw, left is r_inner
+    {
+        set_speed(cm_to_speed(v_inner)+zero, cm_to_speed(v_outer)+zero);
+    }
+    else
+    {
+        set_speed(cm_to_speed(v_outer)+zero, cm_to_speed(v_inner)+zero);
     }
 }
 
@@ -170,7 +303,13 @@ void draw()
     {
         int x = px*20;
         int y = py*20;
-        Tft.setPixel(x, 320-y, WHITE);
+        Tft.drawLine(220-(y), 300-(x), 220-(opy), 300-(opx), GREEN);
+        opx = x;
+        opy = y;        
+//        int x = px*20;
+//        int y = py*20;
+//        int x1 = 
+//        Tft.setPixel(x+20, 160-y, GREEN);
     }
     if(mode == 1)
     {
@@ -182,8 +321,15 @@ void draw()
 //        Serial.println(dpy);
         int x = dpx*20;
         int y = dpy*20;
-        Tft.setPixel(x, 320-y, WHITE);        
+        Tft.setPixel(x+20, 160-y, GREEN);        
     }
+//    Tft.fillRectangle(25, 200, 150, 100, BLACK);
+//    int t = v;
+//    String s;
+//    s = String(t);
+//    char b[3];
+//    s.toCharArray(b, 3);
+//    Tft.drawString(b, 30, 200, 5, WHITE);
 }
 
 void p_curve()
@@ -209,8 +355,9 @@ void p_curve()
     dpy = dh0*p0y+dh1*d*sin(r0)+dh2*p1y+dh3*d*sin(r1);
     apx = ddh0*p0x+ddh1*d*cos(r0)+ddh2*p1x+ddh3*d*cos(r1);
     apy = ddh0*p0y+ddh1*d*sin(r0)+ddh2*p1y+ddh3*d*sin(r1);
-    pr = atan(dpy/dpx);
-    dpr = atan(apy/apx);
+    pr = atan(py/px);
+    dpr = atan(dpy/dpx);
+    v = sqrt(dpx*dpx+dpy*dpy);
 }
 
 float ping_median(NewPing* sensor, float avg, int i, int n)
@@ -431,23 +578,27 @@ int get_int(int chars){
 }
 
 void set_speed(int left, int right) {
-    old_time = time;
-    time = millis();
-    elapsed = time - old_time;
-    Serial.print("\nelapsed:\t");
-    Serial.println(elapsed);
-    r_vel = r_vel + r_acc*elapsed/1000.0;
-    l_vel = l_vel + l_acc*elapsed/1000.0;
-    right = bound(r_vel+zero, zero, dead_zone, max_speed);
-    left = bound(l_vel+zero, zero, dead_zone, max_speed);
+//    old_time = time;
+//    time = millis();
+//    elapsed = time - old_time;
+//    Serial.print("\nelapsed:\t");
+//    Serial.println(elapsed);
+//    r_vel = r_vel + r_acc*elapsed/1000.0;
+//    l_vel = l_vel + l_acc*elapsed/1000.0;
+//    right = bound(r_vel+zero, zero, dead_zone, max_speed);
+//    left = bound(l_vel+zero, zero, dead_zone, max_speed);
 //    Serial.print(left);
 //    Serial.print(" ");
 //    Serial.print(right);
 //    Serial.print("\n");
-    right = zero;
-    left = zero;
+//    right = bound(right, zero, dead_zone, max_speed);
+//    left = bound(left, zero, dead_zone, max_speed);
     target_right = right;
     target_left = left;
+    Serial.print("Left:\t");
+    Serial.print(left);
+    Serial.print("\tRight:\t");
+    Serial.println(right);
     Serial1.write(0xAA); //tells the controller we're starting to send it commands
     Serial2.write(0xAA); //tells the controller we're starting to send it commands
     Serial1.write(0xB);   //This is the pololu device # you're connected too that is found in the config utility(converted to hex). I'm using #11 in this example
