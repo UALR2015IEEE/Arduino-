@@ -15,12 +15,22 @@
 
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 
-
 #define slf 0
 #define srr 1
 #define srf 2
 #define slr 3
 #define sff 4
+#define PI 3.14159
+#define D_TO_R 3.14159/180.0
+#define R_TO_D 180.0/3.14159
+
+struct Point {
+	float x;
+	float y;
+	float r;
+	Point(float x, float y, float r) : x(x), y(y), r(r) {}
+	float Length(){ return sqrt(x*x+y*y); }
+};
 
 //function declarations
 float ping_median(NewPing* sensor, float avg, int i, int j);
@@ -32,10 +42,15 @@ int get_int(int chars = 1);
 void set_speed(int left, int right);
 boolean read_serial();
 int bound(int num, int zero, int dead, int top);
-void p_curve();
+void p_curve(float t0);
 void draw();
 void set_speed_angle(float v, float a);
 float cm_to_speed(float v);
+float distance(float x, float y);
+float distance(Point p1, Point p2);
+Point position(float t0);
+Point velocity(float t0);
+float get_curve_parameter(float s);
 void run();
 
 //variable declarations
@@ -44,26 +59,18 @@ int total_loops = 200;
 int loops = 0;
 int opx;
 int opy;
-float tracking_x = 0.0;
-float tracking_y = 0.0;
-float tracking_r = 0.0;
 
-float p0x = 0.0;
-float p0y = 0.0;
-float p1x = 0.0;
-float p1y = 0.0;
-float r0 = 0.0;
-float r1 = 0.0;
-float px = 0.0;
-float py = 0.0;
-float pr = 0.0;
-float dpx = 0.0;
-float dpy = 0.0;
-float dpr = 0.0;
-float apx = 0.0;
-float apy = 0.0;
+Point tracking = Point(0.0, 0.0, 0.0);
+
+Point p = Point(0.0, 0.0, 0.0);
+Point p0 = Point(0.0, 0.0, 0.0);
+Point p1 = Point(0.0, 0.0, 0.0);
+Point v = Point(0.0, 0.0, 0.0);
+Point a = Point(0.0, 0.0, 0.0);
+
 float t = 0.0;
-float v = 0.0;
+float t_min = 0.0;
+float t_max = 1.0;
 
 unsigned long time = millis();
 unsigned long old_time = time;
@@ -140,19 +147,12 @@ void setup(){
 //    Tft.drawString("Robotics",25,80,3,WHITE);
 //    Tft.drawString("^_^",30 ,200,8,WHITE);
 
-    p0x = 1.0;
-    p0y = 1.0;
-    r0 = 45.0*3.14159/180.0;
-    p1x = 35.0;
-    p1y = 1.0;
-    r1 = 0.0*3.14159/180.0;
+	p0 = Point(1.0, 1.0, 45*D_TO_R);
+	p1 = Point(35.0, 1.0, 0.0);
+	tracking = Point(p0.x, p0.y, p0.r);
 
-    tracking_x = p0x;
-    tracking_y = p0y;
-    tracking_r = r0;
-
-    opx = p0x*20;
-    opy = p0y*20;
+    opx = p0.x*20;
+    opy = p0.y*20;
 
     Tft.drawVerticalLine(220,0,320,WHITE);
     Tft.drawHorizontalLine(0,300,240,WHITE);
@@ -165,16 +165,16 @@ void setup(){
         Tft.setPixel(219, y, WHITE);
     }
     
-    Tft.drawCircle(220-(p0y*20), 300-(p0x*20), 5, RED);
-    Tft.drawCircle(220-(p1y*20), 300-(p1x*20), 5, BLUE);
-    Tft.drawLine(220-(p0y*20), 300-(p0x*20), 220-((p0y+2*sin(r0))*20), 300-((p0x+2*cos(r0))*20), RED);
-    Tft.drawLine(220-(p1y*20), 300-(p1x*20), 220-((p1y+2*sin(r1))*20), 300-((p1x+2*cos(r1))*20), BLUE);    
+    Tft.drawCircle(220-(p0.y*20), 300-(p0.x*20), 5, RED);
+    Tft.drawCircle(220-(p1.y*20), 300-(p1.x*20), 5, BLUE);
+    Tft.drawLine(220-(p0.y*20), 300-(p0.x*20), 220-((p0.y+2*sin(p0.r))*20), 300-((p0.x+2*cos(p0.r))*20), RED);
+    Tft.drawLine(220-(p1.y*20), 300-(p1.x*20), 220-((p1.y+2*sin(p1.r))*20), 300-((p1.x+2*cos(p1.r))*20), BLUE);    
 
     Serial.println("Setup complete");
     while(ts.pressure() < ts.pressureThreshhold);
     
-    p_curve();
-    set_speed_angle(v, pr);
+    p_curve(t_min);
+    set_speed_angle(v.Length(), p.r);
     old_time = millis();    
     
 }
@@ -226,23 +226,26 @@ void run()
     if(time - old_time > 10 && loops <= total_loops)
     {
         t += 1.0/total_loops;
-        p_curve();        
-        set_speed_angle(v, pr);
+        p_curve(t);        
+        //set_speed_angle(v.Length(), p.r);
         draw();
         loops++;
-        tracking_x = tracking_x + dpx * (time - old_time)/1000.0;
-        tracking_y = tracking_y + dpy * (time - old_time)/1000.0;
-        tracking_r = tracking_r + dpr * (time - old_time)/1000.0;
+		unsigned int elapsed = (time - old_time)/1000.0;
+		tracking = Point( (tracking.x+v.x*elapsed), (tracking.y+v.y*elapsed), (tracking.r+v.r*elapsed) );
+		Point n = Point(v.x*elapsed, v.y*elapsed, 0.0);
+		float m = get_curve_parameter(n.Length());
         Serial.print("t: ");
-        Serial.println(time - old_time);
+        Serial.println(elapsed);
         Serial.print("TX: ");
-        Serial.print(tracking_x);
+        Serial.print(tracking.x);
         Serial.print("\tTY: ");
-        Serial.println(tracking_y);      
+        Serial.println(tracking.y);      
         Serial.print("PX: ");
-        Serial.print(px);
+        Serial.print(p.x);
         Serial.print("\tPY: ");
-        Serial.println(py);          
+        Serial.print(p.y);          
+		Serial.print("\tS: ");
+		Serial.println(m);
         old_time = time;
     }
     
@@ -252,6 +255,16 @@ void run()
         loops++;
     }
     
+}
+
+float distance(float x, float y)
+{
+	return sqrt(x*x+y*y);
+}
+
+float distance(Point p1, Point p2)
+{
+	return sqrt( (p1.x-p2.x)*(p1.x-p2.x)+(p1.y-p2.y)*(p1.y-p2.y) );
 }
 
 float cm_to_speed(float v)
@@ -301,8 +314,8 @@ void draw()
 {
     if(mode == 0)
     {
-        int x = px*20;
-        int y = py*20;
+        int x = p.x*20;
+        int y = p.y*20;
         Tft.drawLine(220-(y), 300-(x), 220-(opy), 300-(opx), GREEN);
         opx = x;
         opy = y;        
@@ -319,8 +332,8 @@ void draw()
 //        Serial.print(dpx);
 //        Serial.print("\tdpy:\t");
 //        Serial.println(dpy);
-        int x = dpx*20;
-        int y = dpy*20;
+        int x = v.x*20;
+        int y = v.y*20;
         Tft.setPixel(x+20, 160-y, GREEN);        
     }
 //    Tft.fillRectangle(25, 200, 150, 100, BLACK);
@@ -332,32 +345,71 @@ void draw()
 //    Tft.drawString(b, 30, 200, 5, WHITE);
 }
 
-void p_curve()
+float get_curve_parameter(float s)
 {
-    float t2 = t*t;
-    float t3 = t2*t;
+	float t0 = t_min;
+	int n = 30;
+	float h = s/n;
+
+	for(int i = 0; i <= n; i++)
+	{
+		float k1 = h/velocity(t0).Length();
+		float k2 = h/velocity(t0+k1/2.0).Length();
+		float k3 = h/velocity(t0+k2/2.0).Length();
+		float k4 = h/velocity(t0+k3/2.0).Length();
+		t0 += (k1+2.0*(k2+k3)+k4)/6.0;
+	}
+	return t0;
+}
+
+Point position(float t0)
+{
+	float t2 = t0*t0;
+	float t3 = t2*t0;
     float h0 = (2*t3)-(3*t2)+1;
-    float h1 = (t3)-(2*t2)+t;
+    float h1 = (t3)-(2*t2)+t0;
     float h2 = (-2*t3)+(3*t2);
     float h3 = (t3)-(t2);
-    float dh0 = (6*t2)-(6*t);
-    float dh1 = (3*t2)-(4*t)+1;
-    float dh2 = (-6*t2)+(6*t);
-    float dh3 = (3*t2)-(2*t);
-    float ddh0 = (12*t)-6;
-    float ddh1 = (6*t)-4;
-    float ddh2 = (-12*t)+6;
-    float ddh3 = (6*t)-2;    
-    float d = sqrt((p1x-p0x)*(p1x-p0x)+(p1y-p0y)*(p1y-p0y));
-    px = h0*p0x+h1*d*cos(r0)+h2*p1x+h3*d*cos(r1);
-    py = h0*p0y+h1*d*sin(r0)+h2*p1y+h3*d*sin(r1);
-    dpx = dh0*p0x+dh1*d*cos(r0)+dh2*p1x+dh3*d*cos(r1);
-    dpy = dh0*p0y+dh1*d*sin(r0)+dh2*p1y+dh3*d*sin(r1);
-    apx = ddh0*p0x+ddh1*d*cos(r0)+ddh2*p1x+ddh3*d*cos(r1);
-    apy = ddh0*p0y+ddh1*d*sin(r0)+ddh2*p1y+ddh3*d*sin(r1);
-    pr = atan(py/px);
-    dpr = atan(dpy/dpx);
-    v = sqrt(dpx*dpx+dpy*dpy);
+    float d = distance(p0, p1);
+	float x = h0*p0.x+h1*d*cos(p0.r)+h2*p1.x+h3*d*cos(p1.r);
+    float y = h0*p0.y+h1*d*sin(p0.r)+h2*p1.y+h3*d*sin(p1.r);
+	float r = atan(y/x);
+	return Point(x, y, r);
+}
+
+Point velocity(float t0)
+{
+
+    float t2 = t0*t0;
+    float dh0 = (6*t2)-(6*t0);
+    float dh1 = (3*t2)-(4*t0)+1;
+    float dh2 = (-6*t2)+(6*t0);
+    float dh3 = (3*t2)-(2*t0);
+    float d = distance(p0, p1);
+    float x = dh0*p0.x+dh1*d*cos(p0.r)+dh2*p1.x+dh3*d*cos(p1.r);
+    float y = dh0*p0.y+dh1*d*sin(p0.r)+dh2*p1.y+dh3*d*sin(p1.r);
+    float r = atan(y/x);
+	return Point(x, y, r);
+}
+
+Point acceleration(float t0)
+{
+    float ddh0 = (12*t0)-6;
+    float ddh1 = (6*t0)-4;
+    float ddh2 = (-12*t0)+6;
+    float ddh3 = (6*t0)-2;    
+    float d = distance(p0, p1);
+    float x = ddh0*p0.x+ddh1*d*cos(p0.r)+ddh2*p1.x+ddh3*d*cos(p1.r);
+	float y = ddh0*p0.y+ddh1*d*sin(p0.r)+ddh2*p1.y+ddh3*d*sin(p1.r);
+	float r = atan(y/x);
+	return Point(x, y, r);
+}
+
+void p_curve(float t0)
+{
+	p = position(t0);
+	v = velocity(t0);
+	a = acceleration(t0);
 }
 
 float ping_median(NewPing* sensor, float avg, int i, int n)
