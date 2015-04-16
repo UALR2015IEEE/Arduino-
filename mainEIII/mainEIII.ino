@@ -44,7 +44,7 @@ boolean read_serial();
 int bound(int num, int zero, int dead, int top);
 void p_curve(float t0);
 void draw();
-void set_speed_angle(float v, float a);
+Point set_speed_angle(float v, float a);
 float cm_to_speed(float v);
 float distance(float x, float y);
 float distance(Point p1, Point p2);
@@ -52,6 +52,9 @@ Point position(float t0);
 Point velocity(float t0);
 Point acceleration(float t0);
 float get_curve_parameter(float s);
+void padding( int number, byte width );
+void padding( float number, byte width );
+void padding( double number, byte width );
 void run();
 
 //variable declarations
@@ -69,6 +72,7 @@ Point p0 = Point(0.0, 0.0, 0.0);
 Point p1 = Point(0.0, 0.0, 0.0);
 Point v = Point(0.0, 0.0, 0.0);
 Point a = Point(0.0, 0.0, 0.0);
+Point ss = Point(0.0, 0.0, 0.0);
 
 float t = 0.0;
 float t_min = 0.0;
@@ -150,7 +154,7 @@ void setup(){
 //    Tft.drawString("^_^",30 ,200,8,WHITE);
 
 	p0 = Point(0.0, 30.5, 0.0);
-	p1 = Point(61.0, 0.0, 0.0);
+	p1 = Point(30.5, 0.0, 0.0);
 	tracking = Point(0.0, 0.0, 0.0);
 
     opx = p0.x*d_scale;
@@ -175,8 +179,20 @@ void setup(){
     Serial.println("Setup complete");
     while(ts.pressure() < ts.pressureThreshhold);
     
+	t = t_min;
+	/*while( t < t_max )
+	{
+		unsigned long t0 = millis();
+		p_curve(t);
+		t += 0.01;
+		draw();
+		Serial.println( millis() - t0 );
+	}
+
+	t = t_min;*/
+
     p_curve(t_min);
-    set_speed_angle(v.Length()/2.0, v.r/2.0);
+    ss = set_speed_angle(v.Length(), v.r);
     old_time = millis();    
     
 }
@@ -188,7 +204,7 @@ void loop() {
 //    draw();
 //    set_speed_angle(15, 3.1415926/8.0);
     run();
-    //set_speed_angle(20.0, 1.0);
+    //set_speed_angle(80.0, 2.0);
     if (Serial.available()){
         command_stat = read_serial();
 //        announce_sensors();
@@ -230,22 +246,26 @@ void run()
     {
         float elapsed = (time - old_time)/1000.0;
         Serial.print("t: ");
-        Serial.println(elapsed);
-	tracking = Point( (tracking.x+v.x*elapsed/2.0), (tracking.y+v.y*elapsed/2.0), (tracking.r+v.r*elapsed/2.0) );
-        Serial.print("TX: ");
-        Serial.print(tracking.x);
-        Serial.print("\tTY: ");
-        Serial.println(tracking.y);      
-	t = get_curve_parameter(tracking.Length());
-	Serial.print("S: ");
-	Serial.println(t);
+        padding(elapsed, 1);
+		tracking = Point( (tracking.x+ss.x*elapsed/2.0), (tracking.y+ss.y*elapsed/2.0), (tracking.r+ss.r*elapsed/2.0) );
+        Serial.print(" | TX: ");
+        padding(tracking.x, 3);
+        Serial.print(" | TY: ");
+        padding(tracking.y, 3);
+		Serial.print(" | TR: ");
+		padding(tracking.r*R_TO_D, 3);
+		t = get_curve_parameter(tracking.Length());
+		Serial.print(" | S: ");
+		padding(t, 1);
         p_curve(t);
-        Serial.print("PX: ");
-        Serial.print(p.x);
-        Serial.print("\tPY: ");
-        Serial.print(p.y);                  
-        set_speed_angle(v.Length()/2.0, v.r/2.0);
-        //draw();
+        Serial.print(" | PX: ");
+        padding(p.x, 3);
+        Serial.print(" | PY: ");
+        padding(p.y, 3);       
+		Serial.print(" | PR: ");
+		padding(p.r*R_TO_D, 3);
+        ss = set_speed_angle(v.Length(), v.r);
+        draw();
         old_time = time;
     }
     
@@ -268,32 +288,40 @@ float cm_to_speed(float v)
     return (v-10.0735)/0.029695;
 }
 
-void set_speed_angle(float v, float a)
+Point set_speed_angle(float v, float a)
 {
     float r = abs(v/(a+0.00000001)); 
     float r_inner = r - 8.75;
     float r_outer = r + 8.75;
     float v_inner = r_inner * abs(a);
     float v_outer = r_outer * abs(a);
+
+	while(v_inner > 4000 || v_outer > 4000)
+	{
+		v = v * 0.99;
+		a = a * 0.99;
+		v_inner = v_inner * 0.99;
+		v_outer = v_outer * 0.99;
+	}
     
-    Serial.print("v: ");
-    Serial.print(v);
-    Serial.print("\ta: ");
-    Serial.print(a*180/3.14159);
-    Serial.print("\tr: ");
-    Serial.print(r);
-    Serial.print("\tr_inner ");
-    Serial.print(r_inner);
-    Serial.print("\tr_outer ");
-    Serial.print(r_outer);
-    Serial.print("\tv_inner ");
-    Serial.print(v_inner);
-    Serial.print("\tv_outer ");
-    Serial.print(v_outer);
-    Serial.print("\tcm_inner ");
-    Serial.print(cm_to_speed(v_inner)+zero);
-    Serial.print("\tcm_outer ");
-    Serial.print(cm_to_speed(v_outer)+zero);
+    Serial.print(" | v: ");
+    padding(v, 3);
+    Serial.print(" | a: ");
+    padding(a*R_TO_D, 3);
+    //Serial.print("\tr: ");
+    //Serial.print(r);
+    //Serial.print("\tr_inner ");
+    //Serial.print(r_inner);
+    //Serial.print("\tr_outer ");
+    //Serial.print(r_outer);
+    Serial.print(" | v_i ");
+    padding(v_inner, 3);
+    Serial.print(" | v_o ");
+    padding(v_outer, 3);
+    Serial.print(" | cm_i ");
+    padding(cm_to_speed(v_inner)+zero, 4);
+    Serial.print(" | cm_o ");
+    padding(cm_to_speed(v_outer)+zero, 4);
     Serial.println();
 
     if(a > 0.0) //rotate ccw, left is r_inner
@@ -304,6 +332,9 @@ void set_speed_angle(float v, float a)
     {
         set_speed(cm_to_speed(v_outer)+zero, cm_to_speed(v_inner)+zero);
     }
+
+	return Point(v*cos(p.r), v*sin(p.r), a);
+
 }
 
 void draw()
@@ -312,6 +343,14 @@ void draw()
     {
         int x = p.x*d_scale;
         int y = p.y*d_scale;
+		//Serial.print("X: ");
+		//Serial.print(x);
+		//Serial.print("\tY: ");
+		//Serial.println(y);
+		if( y > 220 ) y = y%220;
+		if( x > 300 ) x = x%300;
+		//while(220 - y < 0) { y -= 220; }
+		//while(300 - x < 0) { x -= 300; }
         Tft.drawLine(220-(y), 300-(x), 220-(opy), 300-(opx), GREEN);
         opx = x;
         opy = y;        
@@ -344,7 +383,7 @@ void draw()
 float get_curve_parameter(float s)
 {
 	float t0 = t_min;
-	int n = 20;
+	int n = 40;
 	float h = s/n;
 
 	for(int i = 0; i <= n; i++)
@@ -369,7 +408,8 @@ Point position(float t0)
     float d = distance(p0, p1);
 	float x = h0*p0.x+h1*d*cos(p0.r)+h2*p1.x+h3*d*cos(p1.r);
     float y = h0*p0.y+h1*d*sin(p0.r)+h2*p1.y+h3*d*sin(p1.r);
-	float r = atan2(y/x);
+	Point v = velocity(t0);
+	float r = atan2(v.y, v.x);
 	return Point(x, y, r);
 }
 
@@ -384,7 +424,8 @@ Point velocity(float t0)
     float d = distance(p0, p1);
     float x = dh0*p0.x+dh1*d*cos(p0.r)+dh2*p1.x+dh3*d*cos(p1.r);
     float y = dh0*p0.y+dh1*d*sin(p0.r)+dh2*p1.y+dh3*d*sin(p1.r);
-    float r = atan2(y/x);
+	Point a = acceleration(t0);
+    float r = atan2(a.y, a.x);
 	return Point(x, y, r);
 }
 
@@ -397,7 +438,7 @@ Point acceleration(float t0)
     float d = distance(p0, p1);
     float x = ddh0*p0.x+ddh1*d*cos(p0.r)+ddh2*p1.x+ddh3*d*cos(p1.r);
 	float y = ddh0*p0.y+ddh1*d*sin(p0.r)+ddh2*p1.y+ddh3*d*sin(p1.r);
-	float r = atan2(y/x);
+	float r = atan2(y, x);
 	return Point(x, y, r);
 }
 
@@ -406,6 +447,67 @@ void p_curve(float t0)
 	p = position(t0);
 	v = velocity(t0);
 	a = acceleration(t0);
+}
+
+
+void padding( double number, byte width ) {
+	byte i = 1;
+	if( number < 0 ) 
+	{
+		Serial.print("-");
+		i = 2;
+		number = -number;
+	}
+
+	int currentMax = 10;
+
+	for (i; i<width; i++){
+		if (number < currentMax) {
+			Serial.print("0");
+		}
+		currentMax *= 10;
+	} 
+	Serial.print(number);
+}
+
+void padding( float number, byte width ) {
+	byte i = 1;
+	if( number < 0 ) 
+	{
+		Serial.print("-");
+		i = 2;
+		number = -number;
+	}
+
+	int currentMax = 10;
+
+	for (i; i<width; i++){
+		if (number < currentMax) {
+			Serial.print("0");
+		}
+		currentMax *= 10;
+	} 
+	Serial.print(number);
+}
+
+void padding( int number, byte width ) {
+	byte i = 1;
+	if( number < 0 ) 
+	{
+		Serial.print("-");
+		i = 2;
+		number = -number;
+	}
+
+	int currentMax = 10;
+
+	for (i; i<width; i++){
+		if (number < currentMax) {
+			Serial.print("0");
+		}
+		currentMax *= 10;
+	} 
+	Serial.print(number);
 }
 
 float ping_median(NewPing* sensor, float avg, int i, int n)
@@ -647,10 +749,10 @@ void set_speed(int left, int right) {
     target_left = left;
     if(left != 2048 && right != 2048)
     {
-      Serial.print("Left: ");
-      Serial.print(left);
-      Serial.print("\tRight: ");
-      Serial.println(right);
+      //Serial.print("Left: ");
+      //Serial.print(left);
+      //Serial.print("\tRight: ");
+      //Serial.println(right);
     }
     Serial1.write(0xAA); //tells the controller we're starting to send it commands
     Serial2.write(0xAA); //tells the controller we're starting to send it commands
