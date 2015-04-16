@@ -194,6 +194,7 @@ void setup(){
     p_curve(t_min);
     ss = set_speed_angle(v.Length(), v.r);
     old_time = millis();    
+	Serial.println();
     
 }
 
@@ -245,28 +246,29 @@ void run()
     if(t < 1.0)
     {
         float elapsed = (time - old_time)/1000.0;
-        Serial.print("t: ");
+        Serial.print("t ");
         padding(elapsed, 1);
-		tracking = Point( (tracking.x+ss.x*elapsed/2.0), (tracking.y+ss.y*elapsed/2.0), (tracking.r+ss.r*elapsed/2.0) );
-        Serial.print(" | TX: ");
+		tracking = Point( (tracking.x+ss.x*elapsed), (tracking.y+ss.y*elapsed), (tracking.r+ss.r*elapsed) );
+        Serial.print(" |TX ");
         padding(tracking.x, 3);
-        Serial.print(" | TY: ");
+        Serial.print(" |TY ");
         padding(tracking.y, 3);
-		Serial.print(" | TR: ");
-		padding(tracking.r*R_TO_D, 3);
+		Serial.print(" |TR ");
+		padding(tracking.r*R_TO_D, 4);
 		t = get_curve_parameter(tracking.Length());
-		Serial.print(" | S: ");
+		Serial.print(" |S ");
 		padding(t, 1);
         p_curve(t);
-        Serial.print(" | PX: ");
-        padding(p.x, 3);
-        Serial.print(" | PY: ");
-        padding(p.y, 3);       
-		Serial.print(" | PR: ");
-		padding(p.r*R_TO_D, 3);
+        Serial.print(" |VX ");
+        padding(v.x, 4);
+        Serial.print(" |VY ");
+        padding(v.y, 4);       
+		Serial.print(" |VR ");
+		padding(v.r*R_TO_D, 4);
         ss = set_speed_angle(v.Length(), v.r);
         draw();
         old_time = time;
+		Serial.println();
     }
     
     if(t >= 1.0) set_speed(zero, zero);
@@ -304,32 +306,33 @@ Point set_speed_angle(float v, float a)
 		v_outer = v_outer * 0.99;
 	}
     
-    Serial.print(" | v: ");
+    Serial.print(" |v ");
     padding(v, 3);
-    Serial.print(" | a: ");
-    padding(a*R_TO_D, 3);
+    Serial.print(" |a ");
+    padding(a*R_TO_D, 4);
     //Serial.print("\tr: ");
     //Serial.print(r);
     //Serial.print("\tr_inner ");
     //Serial.print(r_inner);
     //Serial.print("\tr_outer ");
     //Serial.print(r_outer);
-    Serial.print(" | v_i ");
+    Serial.print(" |v_i ");
     padding(v_inner, 3);
-    Serial.print(" | v_o ");
+    Serial.print(" |v_o ");
     padding(v_outer, 3);
-    Serial.print(" | cm_i ");
+    Serial.print(" |cm_i ");
     padding(cm_to_speed(v_inner)+zero, 4);
-    Serial.print(" | cm_o ");
+    Serial.print(" |cm_o ");
     padding(cm_to_speed(v_outer)+zero, 4);
-    Serial.println();
 
     if(a > 0.0) //rotate ccw, left is r_inner
     {
+		Serial.print(" |L = r_i ");
         set_speed(cm_to_speed(v_inner)+zero, cm_to_speed(v_outer)+zero);
     }
     else
     {
+		Serial.print(" |R = r_i ");
         set_speed(cm_to_speed(v_outer)+zero, cm_to_speed(v_inner)+zero);
     }
 
@@ -383,7 +386,7 @@ void draw()
 float get_curve_parameter(float s)
 {
 	float t0 = t_min;
-	int n = 40;
+	int n = 20;
 	float h = s/n;
 
 	for(int i = 0; i <= n; i++)
