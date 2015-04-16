@@ -32,6 +32,12 @@ struct Point {
 	float Length(){ return sqrt(x*x+y*y); }
 };
 
+struct Curve {
+	float da;
+	float r;
+	Curve(float r, float da) : da(da), r(r) {}
+};
+
 //function declarations
 float ping_median(NewPing* sensor, float avg, int i, int j);
 void stablize();
@@ -44,7 +50,7 @@ boolean read_serial();
 int bound(int num, int zero, int dead, int top);
 void p_curve(float t0);
 void draw();
-Point set_speed_angle(float v, float a);
+Curve set_speed_angle(float vel, float ang);
 float cm_to_speed(float v);
 float distance(float x, float y);
 float distance(Point p1, Point p2);
@@ -52,28 +58,35 @@ Point position(float t0);
 Point velocity(float t0);
 Point acceleration(float t0);
 float get_curve_parameter(float s);
+float get_curve_length();
+float get_x_length(float a0, float da, float tf, float r);
+float get_y_length(float a0, float da, float tf, float r);
 void padding( int number, byte width );
 void padding( float number, byte width );
 void padding( double number, byte width );
 void run();
 
 //variable declarations
-int mode = 0;
+int mode = 1;
 int total_loops = 200;
 int loops = 0;
 int opx;
 int opy;
+int ovx;
+int ovy;
 int d_scale = 5;
 
 Point tracking = Point(0.0, 0.0, 0.0);
+Point old_tracking = Point(0.0, 0.0, 0.0);
 
 Point p = Point(0.0, 0.0, 0.0);
 Point p0 = Point(0.0, 0.0, 0.0);
 Point p1 = Point(0.0, 0.0, 0.0);
 Point v = Point(0.0, 0.0, 0.0);
 Point a = Point(0.0, 0.0, 0.0);
-Point ss = Point(0.0, 0.0, 0.0);
+Curve ss = Curve(0.0, 0.0);
 
+float l = 0.0;
 float t = 0.0;
 float t_min = 0.0;
 float t_max = 1.0;
@@ -154,7 +167,7 @@ void setup(){
 //    Tft.drawString("^_^",30 ,200,8,WHITE);
 
 	p0 = Point(0.0, 30.5, 0.0);
-	p1 = Point(30.5, 0.0, 0.0);
+	p1 = Point(121.5, 0.0, 0.0);
 	tracking = Point(0.0, 0.0, 0.0);
 
     opx = p0.x*d_scale;
@@ -191,9 +204,15 @@ void setup(){
 
 	t = t_min;*/
 
+
+	//l = distance(p0, p1);
     p_curve(t_min);
+	ovx = v.x*d_scale;
+	ovy = v.y*d_scale;
+	//l = get_curve_length();
     ss = set_speed_angle(v.Length(), v.r);
     old_time = millis();    
+	old_tracking = tracking;
 	Serial.println();
     
 }
@@ -248,7 +267,25 @@ void run()
         float elapsed = (time - old_time)/1000.0;
         Serial.print("t ");
         padding(elapsed, 1);
-		tracking = Point( (tracking.x+ss.x*elapsed), (tracking.y+ss.y*elapsed), (tracking.r+ss.r*elapsed) );
+		/*tracking.x += ss.x*elapsed;
+		tracking.y += ss.y*elapsed;
+		tracking.r += atan2((tracking.y - old_tracking.y),(tracking.x - old_tracking.x + 0.0000001))*elapsed;
+		old_tracking.x = tracking.x;
+		old_tracking.y = tracking.y;
+		old_tracking.r = tracking.r;*/
+		float theta;
+		if(ss.da > 0) theta = tracking.r + PI/2.0;
+		if(ss.da < 0) theta = tracking.r - PI/2.0;
+		float x_d = get_x_length(theta, ss.da, elapsed, ss.r);
+		float y_d = get_y_length(theta, ss.da, elapsed, ss.r);
+		tracking.x += x_d;
+		tracking.y += y_d;
+		tracking.r = p.r;
+		Serial.print(" |X: ");
+		Serial.print(x_d);
+		Serial.print(" |Y: ");
+	    Serial.print(y_d);	
+		//tracking = Point( (tracking.x+x_d), (tracking.y+y_d), (tracking.r+ss.da*elapsed) );
         Serial.print(" |TX ");
         padding(tracking.x, 3);
         Serial.print(" |TY ");
@@ -265,9 +302,11 @@ void run()
         padding(v.y, 4);       
 		Serial.print(" |VR ");
 		padding(v.r*R_TO_D, 4);
+		Serial.print(" |PR ");
+		padding(p.r*R_TO_D, 4);
         ss = set_speed_angle(v.Length(), v.r);
-        draw();
         old_time = time;
+        draw();
 		Serial.println();
     }
     
@@ -290,26 +329,35 @@ float cm_to_speed(float v)
     return (v-10.0735)/0.029695;
 }
 
-Point set_speed_angle(float v, float a)
+Curve set_speed_angle(float vel, float ang)
 {
-    float r = abs(v/(a+0.00000001)); 
+    float r = abs(vel/(ang+0.00000001)); 
     float r_inner = r - 8.75;
     float r_outer = r + 8.75;
-    float v_inner = r_inner * abs(a);
-    float v_outer = r_outer * abs(a);
+    float v_inner = r_inner * abs(ang);
+    float v_outer = r_outer * abs(ang);
 
-	while(v_inner > 4000 || v_outer > 4000)
+	while(cm_to_speed(v_inner)+zero > 2700 || cm_to_speed(v_outer)+zero > 2700)
 	{
-		v = v * 0.99;
-		a = a * 0.99;
+		vel = vel * 0.99;
+		ang = ang * 0.99;
 		v_inner = v_inner * 0.99;
 		v_outer = v_outer * 0.99;
 	}
+
+	while(cm_to_speed(v_inner)+zero < 2400 || cm_to_speed(v_outer)+zero < 2400)
+	{
+		vel = vel * 1.01;
+		ang = ang * 1.01;
+		v_inner = v_inner * 1.01;
+		v_outer = v_outer * 1.01;
+	}
+
     
     Serial.print(" |v ");
-    padding(v, 3);
+    padding(vel, 3);
     Serial.print(" |a ");
-    padding(a*R_TO_D, 4);
+    padding(ang*R_TO_D, 4);
     //Serial.print("\tr: ");
     //Serial.print(r);
     //Serial.print("\tr_inner ");
@@ -325,7 +373,7 @@ Point set_speed_angle(float v, float a)
     Serial.print(" |cm_o ");
     padding(cm_to_speed(v_outer)+zero, 4);
 
-    if(a > 0.0) //rotate ccw, left is r_inner
+    if(ang > 0.0) //rotate ccw, left is r_inner
     {
 		Serial.print(" |L = r_i ");
         set_speed(cm_to_speed(v_inner)+zero, cm_to_speed(v_outer)+zero);
@@ -336,13 +384,13 @@ Point set_speed_angle(float v, float a)
         set_speed(cm_to_speed(v_outer)+zero, cm_to_speed(v_inner)+zero);
     }
 
-	return Point(v*cos(p.r), v*sin(p.r), a);
+	return Curve(r, ang);
 
 }
 
 void draw()
 {
-    if(mode == 0)
+    //if(mode == 0)
     {
         int x = p.x*d_scale;
         int y = p.y*d_scale;
@@ -362,25 +410,89 @@ void draw()
 //        int x1 = 
 //        Tft.setPixel(x+20, 160-y, GREEN);
     }
-    if(mode == 1)
+    //if(mode == 1)
     {
-//        Serial.print("t:\t");
-//        Serial.print(t);
-//        Serial.print("\tdpx:\t");
-//        Serial.print(dpx);
-//        Serial.print("\tdpy:\t");
-//        Serial.println(dpy);
         int x = v.x*d_scale;
         int y = v.y*d_scale;
-        Tft.setPixel(x+20, 160-y, GREEN);        
-    }
-//    Tft.fillRectangle(25, 200, 150, 100, BLACK);
-//    int t = v;
-//    String s;
-//    s = String(t);
-//    char b[3];
-//    s.toCharArray(b, 3);
-//    Tft.drawString(b, 30, 200, 5, WHITE);
+		//Serial.print("X: ");
+		//Serial.print(x);
+		//Serial.print("\tY: ");
+		//Serial.println(y);
+		if( y > 220 ) y = y%220;
+		if( x > 300 ) x = x%300;
+		while(y < 0) { y += 220; }
+		while(x < 0) { x += 300; }
+        Tft.drawLine((y), (x), (ovy), (ovx), GREEN);
+        ovx = x;
+        ovy = y;        
+//        int x = px*20;
+//        int y = py*20;
+//        int x1 = 
+//        Tft.setPixel(x+20, 160-y, GREEN);
+	}
+}
+
+float get_curve_length()
+{
+	float t0 = t_min;
+	int n = 200;
+	float h = t_max/n;
+
+	float l = 0.0;
+
+	for(int i = 0; i <= n; i++)
+	{		
+		l += velocity(t0).Length();
+		t0 += h;
+	}
+	return l;
+
+}
+
+float get_x_length(float a0, float da, float tf, float r)
+{
+	
+	if(tf < 0.00001) return 0;
+
+	float t0 = a0;
+	int n = 20;
+	float h = tf/n;
+
+	a0 += da*h;
+
+	float l = 0;
+	for(int i = 1; i <= n; i++)
+	{
+		l += abs(r*(cos(a0)-cos(t0)));
+		t0 = a0;
+		a0 += da*h;
+	}
+
+	return l;
+
+}
+
+float get_y_length(float a0, float da, float tf, float r)
+{
+
+	if(tf < 0.00001) return 0;
+
+	float t0 = a0;
+	int n = 20;
+	float h = tf/n;
+	
+	a0 += da*h;
+
+	float l = 0;
+	for(int i = 1; i <= n; i++)
+	{
+		l += abs(r*(sin(a0)-sin(t0)));
+		t0 = a0;
+		a0 += da*h;
+	}
+
+	return l;
+
 }
 
 float get_curve_parameter(float s)
@@ -819,6 +931,7 @@ boolean read_serial(){
         }
         if (readbyte == 94){
             int com = get_int();
+			Serial.print(com);
             if (com == 0)
                 sb->sendColour(0, 0, 1023);
             if (com == 1)
