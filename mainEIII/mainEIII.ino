@@ -799,21 +799,33 @@ boolean read_serial(){
           announce_sensors();
             return false;
         }
-        if (readbyte == 33){
-          move_blocks = 0;
-          dir = 0;
-            if (Serial.available()){
+        if (readbyte == 33) {
+            move_blocks = 0;
+            dir = 0;
+            if (Serial.available()) {
                 move_blocks = get_int();
             }
+            return true;
+        }
+        if (readbyte == 64)
             if (Serial.available()){
                 dir = get_int();
             }
             return true;
         }
         if (readbyte == 35){
-          set_speed(2150, 2150);
+            Serial.print(ts.pressure() < ts.pressureThreshhold);
           return false;
         }
+        if (readbyte == 94){
+            int com = get_int();
+            if (com == 0)
+                sb->sendColour(0, 0, 1023);
+            if (com == 1)
+                sb->sendColour(0, 1023, 0);
+            if (com == 2)
+                sb->sendColour(1023, 0, 0);
+            return false;
     }
     else{
         return false;
