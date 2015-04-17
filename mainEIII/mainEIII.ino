@@ -20,9 +20,8 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 #define srf 2
 #define slr 3
 #define sff 4
-#define PI 3.14159
-#define D_TO_R 3.14159/180.0
-#define R_TO_D 180.0/3.14159
+#define D_TO_R PI/180.0
+#define R_TO_D 180.0/PI
 
 struct Point {
 	float x;
@@ -35,7 +34,8 @@ struct Point {
 struct Curve {
 	float da;
 	float r;
-	Curve(float r, float da) : da(da), r(r) {}
+	float v;
+	Curve(float r, float da, float v) : da(da), r(r), v(v) {}
 };
 
 //function declarations
@@ -78,13 +78,15 @@ int d_scale = 5;
 
 Point tracking = Point(0.0, 0.0, 0.0);
 Point old_tracking = Point(0.0, 0.0, 0.0);
+Point current = Point(0.0, 0.0, 0.0);
+Point old_current = Point(0.0, 0.0, 0.0);
 
 Point p = Point(0.0, 0.0, 0.0);
 Point p0 = Point(0.0, 0.0, 0.0);
 Point p1 = Point(0.0, 0.0, 0.0);
 Point v = Point(0.0, 0.0, 0.0);
 Point a = Point(0.0, 0.0, 0.0);
-Curve ss = Curve(0.0, 0.0);
+Curve ss = Curve(0.0, 0.0, 0.0);
 
 float l = 0.0;
 float t = 0.0;
@@ -169,6 +171,7 @@ void setup(){
 	p0 = Point(0.0, 30.5, 0.0);
 	p1 = Point(121.5, 0.0, 0.0);
 	tracking = Point(0.0, 0.0, 0.0);
+	current = p0;
 
     opx = p0.x*d_scale;
     opy = p0.y*d_scale;
@@ -190,8 +193,9 @@ void setup(){
     Tft.drawLine(220-(p1.y*d_scale), 300-(p1.x*d_scale), 220-((p1.y+2*sin(p1.r))*d_scale), 300-((p1.x+2*cos(p1.r))*d_scale), BLUE);    
 
     Serial.println("Setup complete");
+
     while(ts.pressure() < ts.pressureThreshhold);
-    
+
 	t = t_min;
 	/*while( t < t_max )
 	{
@@ -211,9 +215,10 @@ void setup(){
 	ovy = v.y*d_scale;
 	//l = get_curve_length();
     ss = set_speed_angle(v.Length(), v.r);
-    old_time = millis();    
-	old_tracking = tracking;
+    old_time = millis();   
 	Serial.println();
+	old_tracking = tracking;
+	old_current = current;
     
 }
 
@@ -229,7 +234,7 @@ void loop() {
         command_stat = read_serial();
 //        announce_sensors();
 //        
-        if (command_stat){
+//        if (command_stat){
 //            p0x += 1;
 //            Tft.paintScreenBlack();
 //            Tft.drawVerticalLine(20,0,320,WHITE);
@@ -252,7 +257,7 @@ void loop() {
 //            mode += 1;
 //            if(mode > 1) mode = 0;
 //            //exec_command();
-        }
+        //}
     }
 }
 
@@ -264,46 +269,61 @@ void run()
     
     if(t < 1.0)
     {
-        float elapsed = (time - old_time)/1000.0;
+        float elapsed = (time - old_time)/2000.0;
         Serial.print("t ");
         padding(elapsed, 1);
-		/*tracking.x += ss.x*elapsed;
+	    /*tracking.x += ss.x*elapsed;
 		tracking.y += ss.y*elapsed;
 		tracking.r += atan2((tracking.y - old_tracking.y),(tracking.x - old_tracking.x + 0.0000001))*elapsed;
 		old_tracking.x = tracking.x;
 		old_tracking.y = tracking.y;
 		old_tracking.r = tracking.r;*/
 		float theta;
-		if(ss.da > 0) theta = tracking.r + PI/2.0;
-		if(ss.da < 0) theta = tracking.r - PI/2.0;
+		if(ss.da >= 0) theta = current.r - PI/2.0;
+		if(ss.da < 0) theta = current.r + PI/2.0;
 		float x_d = get_x_length(theta, ss.da, elapsed, ss.r);
 		float y_d = get_y_length(theta, ss.da, elapsed, ss.r);
 		tracking.x += x_d;
 		tracking.y += y_d;
-		tracking.r = p.r;
-		Serial.print(" |X: ");
-		Serial.print(x_d);
-		Serial.print(" |Y: ");
-	    Serial.print(y_d);	
-		//tracking = Point( (tracking.x+x_d), (tracking.y+y_d), (tracking.r+ss.da*elapsed) );
-        Serial.print(" |TX ");
-        padding(tracking.x, 3);
-        Serial.print(" |TY ");
-        padding(tracking.y, 3);
-		Serial.print(" |TR ");
-		padding(tracking.r*R_TO_D, 4);
+		tracking.r = atan2( (tracking.y-old_tracking.y), (tracking.x-old_tracking.x) );
+		old_tracking = tracking;
+		current.x += ss.v*(cos(theta+ss.da*elapsed) - cos(theta));
+		current.y += ss.v*(sin(theta+ss.da*elapsed) - sin(theta));
+		Serial.print(" |TH ");
+		padding(theta*R_TO_D, 4);
+		Serial.print(" |CTH ");
+	    padding((theta+ss.da*elapsed)*R_TO_D, 4);
+		//current.x += ss.v*cos(current.r+ss.da*elapsed)*elapsed;
+		//current.y += ss.v*sin(current.r+ss.da*elapsed)*elapsed;
+		current.r = atan2( (current.y - old_current.y), (current.x - old_current.x) );
+		old_current = current;
 		t = get_curve_parameter(tracking.Length());
 		Serial.print(" |S ");
 		padding(t, 1);
         p_curve(t);
+        Serial.print(" |PX ");
+        padding(p.x, 4);
+        Serial.print(" |PY ");
+        padding(p.y, 4);       
+		Serial.print(" |PR ");
+		padding(p.r*R_TO_D, 4);
         Serial.print(" |VX ");
         padding(v.x, 4);
         Serial.print(" |VY ");
         padding(v.y, 4);       
 		Serial.print(" |VR ");
 		padding(v.r*R_TO_D, 4);
-		Serial.print(" |PR ");
-		padding(p.r*R_TO_D, 4);
+		//tracking = Point( (tracking.x+x_d), (tracking.y+y_d), (tracking.r+ss.da*elapsed) );
+        Serial.print(" |CX ");
+        padding(current.x, 3);
+        Serial.print(" |CY ");
+        padding(current.y, 3);
+		Serial.print(" |CR ");
+		padding(current.r*R_TO_D, 4);
+		Serial.print(" |X: ");
+		Serial.print(x_d);
+		Serial.print(" |Y: ");
+	    Serial.print(y_d);	
         ss = set_speed_angle(v.Length(), v.r);
         old_time = time;
         draw();
@@ -337,6 +357,7 @@ Curve set_speed_angle(float vel, float ang)
     float v_inner = r_inner * abs(ang);
     float v_outer = r_outer * abs(ang);
 
+	/*
 	while(cm_to_speed(v_inner)+zero > 2700 || cm_to_speed(v_outer)+zero > 2700)
 	{
 		vel = vel * 0.99;
@@ -351,7 +372,7 @@ Curve set_speed_angle(float vel, float ang)
 		ang = ang * 1.01;
 		v_inner = v_inner * 1.01;
 		v_outer = v_outer * 1.01;
-	}
+	}*/
 
     
     Serial.print(" |v ");
@@ -368,23 +389,23 @@ Curve set_speed_angle(float vel, float ang)
     padding(v_inner, 3);
     Serial.print(" |v_o ");
     padding(v_outer, 3);
-    Serial.print(" |cm_i ");
-    padding(cm_to_speed(v_inner)+zero, 4);
-    Serial.print(" |cm_o ");
-    padding(cm_to_speed(v_outer)+zero, 4);
+    //Serial.print(" |cm_i ");
+    //padding(cm_to_speed(v_inner)+zero, 4);
+    //Serial.print(" |cm_o ");
+    //padding(cm_to_speed(v_outer)+zero, 4);
 
     if(ang > 0.0) //rotate ccw, left is r_inner
     {
-		Serial.print(" |L = r_i ");
+		Serial.print(" |L ");
         set_speed(cm_to_speed(v_inner)+zero, cm_to_speed(v_outer)+zero);
     }
     else
     {
-		Serial.print(" |R = r_i ");
+		Serial.print(" |R ");
         set_speed(cm_to_speed(v_outer)+zero, cm_to_speed(v_inner)+zero);
     }
 
-	return Curve(r, ang);
+	return Curve(r, ang, vel);
 
 }
 
@@ -838,6 +859,7 @@ void announce_sensors(){
 }
 
 int get_int(int chars){
+    while(!Serial.available());
     char encoded = Serial.read();
     return encoded - 48;
 }
@@ -919,7 +941,7 @@ boolean read_serial(){
             }
             return true;
         }
-        if (readbyte == 64)
+        if (readbyte == 64){
             if (Serial.available()){
                 dir = get_int();
             }
@@ -931,7 +953,8 @@ boolean read_serial(){
         }
         if (readbyte == 94){
             int com = get_int();
-			Serial.print(com);
+	    Serial.println(com);
+            Tft.drawChar(char(com), 150, 100, 5, WHITE);
             if (com == 0)
                 sb->sendColour(0, 0, 1023);
             if (com == 1)
@@ -939,8 +962,9 @@ boolean read_serial(){
             if (com == 2)
                 sb->sendColour(1023, 0, 0);
             return false;
-    }
-    else{
-        return false;
+        }
+        else{
+            return false;
+        }
     }
 }
