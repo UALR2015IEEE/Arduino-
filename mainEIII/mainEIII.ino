@@ -22,7 +22,7 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 #define sff 4
 #define D_TO_R PI/180.0
 #define R_TO_D 180.0/PI
-#define DEBUG true
+#define DEBUG false
 
 struct Point {
   float x;
@@ -51,6 +51,8 @@ void announce_sensors();
 int get_int(int chars = 1);
 void set_speed(int left, int right);
 boolean read_serial();
+void boot();
+void wait4start();
 int bound(int num, int zero, int dead, int top);
 void p_curve(float t0);
 void draw();
@@ -115,6 +117,7 @@ unsigned long elapsed = 0;
 byte readbyte;
 byte writebyte;
 boolean command_stat;
+bool button = false;
 byte dir;
 byte move_blocks;
 const int unit = 12;
@@ -133,7 +136,9 @@ NewPing* sensors[5];
 HughesyShiftBrite* sb;
 
 void setup() {
+  Tft.init();  //init TFT library
 
+  boot();
   Serial1.begin(115200);
   Serial2.begin(115200);
   Serial.begin(115200);
@@ -163,7 +168,6 @@ void setup() {
   sensors[slr] = sonlr;
   sensors[srf] = sonrf;
 
-  Tft.init();  //init TFT library
   //    Tft.drawString("UALR",0,25,4,WHITE);
   //    Tft.drawString("Robotics",25,80,3,WHITE);
   //    Tft.drawString("^_^",30 ,200,8,WHITE);
@@ -171,36 +175,34 @@ void setup() {
   opx = p0.x * d_scale;
   opy = p0.y * d_scale;
 
-  Tft.drawVerticalLine(220, 0, 320, WHITE);
-  Tft.drawHorizontalLine(0, 300, 240, WHITE);
-  for (int x = 0; x < 240; x += d_scale)
-  {
-    Tft.setPixel(x, 299, WHITE);
-  }
-  for (int y = 0; y < 320; y += d_scale)
-  {
-    Tft.setPixel(219, y, WHITE);
+  if (DEBUG){
+    Tft.drawVerticalLine(220, 0, 320, WHITE);
+    Tft.drawHorizontalLine(0, 300, 240, WHITE);
+    for (int x = 0; x < 240; x += d_scale)
+    {
+      Tft.setPixel(x, 299, WHITE);
+    }
+    for (int y = 0; y < 320; y += d_scale)
+    {
+      Tft.setPixel(219, y, WHITE);
+    }
   }
 
-  Tft.drawCircle(220 - (p0.y * d_scale), 300 - (p0.x * d_scale), 5, RED);
-  Tft.drawCircle(220 - (p1.y * d_scale), 300 - (p1.x * d_scale), 5, BLUE);
-  Tft.drawLine(220 - (p0.y * d_scale), 300 - (p0.x * d_scale), 220 - ((p0.y + 2 * sin(p0.r))*d_scale), 300 - ((p0.x + 2 * cos(p0.r))*d_scale), RED);
-  Tft.drawLine(220 - (p1.y * d_scale), 300 - (p1.x * d_scale), 220 - ((p1.y + 2 * sin(p1.r))*d_scale), 300 - ((p1.x + 2 * cos(p1.r))*d_scale), BLUE);
+  if (DEBUG) Tft.drawCircle(220 - (p0.y * d_scale), 300 - (p0.x * d_scale), 5, RED);
+  if (DEBUG) Tft.drawCircle(220 - (p1.y * d_scale), 300 - (p1.x * d_scale), 5, BLUE);
+  if (DEBUG) Tft.drawLine(220 - (p0.y * d_scale), 300 - (p0.x * d_scale), 220 - ((p0.y + 2 * sin(p0.r))*d_scale), 300 - ((p0.x + 2 * cos(p0.r))*d_scale), RED);
+  if (DEBUG)  Tft.drawLine(220 - (p1.y * d_scale), 300 - (p1.x * d_scale), 220 - ((p1.y + 2 * sin(p1.r))*d_scale), 300 - ((p1.x + 2 * cos(p1.r))*d_scale), BLUE);
 
   if (DEBUG) Serial.println("Setup complete");
 
-  while (ts.pressure() < ts.pressureThreshhold);
-
   ovx = v.x * d_scale;
   ovy = v.y * d_scale;
-
-  run(12.0);
-
+  wait4start();
 }
 
 void loop() {
-  if (Serial.available()) {
-    command_stat = read_serial();
+  button = ts.pressure() > ts.pressureThreshhold || button;
+  command_stat = read_serial();
     //        announce_sensors();
     //
     //        if (command_stat){
@@ -227,7 +229,36 @@ void loop() {
     //            if(mode > 1) mode = 0;
     //            //exec_command();
     //}
-  }
+}
+
+void boot(){
+    Tft.drawString("UALR",0,25,4,RED);
+    Tft.drawString("Robotics",25,80,3,GREEN);
+    Tft.drawString("^_^",30 ,150,8,BLUE);
+    Tft.drawString("booting...", 0, 250, 2, YELLOW);
+    delay(1000);
+}
+
+
+void wait4start(){
+    for(int x = 0; x < 240; x++)
+        for(int y = 215; y < 320; y++){
+            Tft.setPixel(x, y, BLACK);
+        }
+     for(int x = 0; x < 240; x++)
+        for(int y = 225; y < 320; y++){
+            Tft.setPixel(x, y, WHITE);
+        }
+    Tft.drawString("START", 25, 250, 5, GREEN);
+    while(ts.pressure() < ts.pressureThreshhold){
+      read_serial();
+    }
+    for(int x = 0; x < 240; x++)
+        for(int y = 225; y < 320; y++){
+            Tft.setPixel(x, y, WHITE);
+        }
+    Tft.drawString("STOP", 45, 250, 5, RED);
+    button = true;
 }
 
 void run(float dist)
@@ -812,7 +843,6 @@ int bound(int num, int zero, int dead, int top)
 boolean read_serial() {
   if (Serial.available()) {
     readbyte = Serial.read();
-    Serial.println(readbyte);
 
     if (readbyte == 63) {
       announce_sensors();
@@ -833,13 +863,12 @@ boolean read_serial() {
       return true;
     }
     if (readbyte == 35) {
-      Serial.print(ts.pressure() < ts.pressureThreshhold);
+      Serial.print(button);
+      button = false;
       return false;
     }
     if (readbyte == 94) {
       int com = get_int();
-      Serial.println(com);
-      Tft.drawChar(char(com), 150, 100, 5, WHITE);
       if (com == 0)
         sb->sendColour(0, 0, 1023);
       if (com == 1)
