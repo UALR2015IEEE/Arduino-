@@ -203,7 +203,20 @@ void setup() {
 void loop() {
   button = ts.pressure() > ts.pressureThreshhold || button;
   command_stat = read_serial();
-    //        announce_sensors();
+  if (command_stat){
+    if (move_block != 0){
+      run(move_blocks);
+      move_blocks = 0;
+    }
+    else if (rotate != 0){
+      rotate(dir);
+      dir = 0;
+    }
+    else{
+      delay(100);
+    }
+      
+      //        announce_sensors();
     //
     //        if (command_stat){
     //            p0x += 1;
