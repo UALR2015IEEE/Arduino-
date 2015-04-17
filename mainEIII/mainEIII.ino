@@ -168,11 +168,6 @@ void setup() {
   //    Tft.drawString("Robotics",25,80,3,WHITE);
   //    Tft.drawString("^_^",30 ,200,8,WHITE);
 
-  p0 = Point(0.0, -31.5, 0.0 * D_TO_R);
-  p1 = Point(121.5, 0.0, 0.0);
-  tracking = Point(0.0, 0.0, 0.0);
-  current = p0;
-
   opx = p0.x * d_scale;
   opy = p0.y * d_scale;
 
@@ -196,29 +191,14 @@ void setup() {
 
   while (ts.pressure() < ts.pressureThreshhold);
 
-  t = t_min;
-
-  p_curve(t_min);
   ovx = v.x * d_scale;
   ovy = v.y * d_scale;
 
-  old_p = position(t_min - 0.1);
-  old_p.r = 0.01;
-  old_p.x = 118.53;
-  old_p.y = -0.11;
-  v.r = (p.r - old_p.r) / (elapsed + 0.001);
-  v.x = (p.x - old_p.x) / (elapsed + 0.001);
-  v.y = (p.y - old_p.y) / (elapsed + 0.001);
-  if ( abs(v.r) < 0.01) v.r = 0.01;
-  ss = set_speed_angle(v.Length(), 0.01);
-  old_time = millis();
-  if (DEBUG) Serial.println();
-  old_tracking = tracking;
-  old_current = current;
+  run(12.0);
+
 }
 
 void loop() {
-  run(12.0);
   if (Serial.available()) {
     command_stat = read_serial();
     //        announce_sensors();
@@ -253,40 +233,59 @@ void loop() {
 void run(float dist)
 {
 
-  //10s run time
-
-
-
+  get_sensor_readings();
+  t = t_min;
+  p0 = Point(0.0, 0.0, 1.0 * D_TO_R);
+  p1 = Point(31.5, 0.0, 0.0);
+  tracking = Point(0.0, 0.0, 0.0);
+  current = p0;
+  p_curve(t);
+  old_p = position(t_min - 0.01);
+  old_p.r = p.r + 0.001 * (elapsed + 0.2);
+  old_p.x = p.x + -0.1 * (elapsed + 0.2);
+  v.r = (p.r - old_p.r) / (elapsed + 0.2);
+  v.x = (p.x - old_p.x) / (elapsed + 0.2);
+  v.y = (p.y - old_p.y) / (elapsed + 0.2);
+  if ( abs(v.r) < 0.01) v.r = 0.01;
+  ss = set_speed_angle(v.Length(), 0.01);
+  old_time = millis();
+  if (DEBUG) Serial.println();
+  old_tracking = tracking;
+  old_current = current;
+  
   while (t < 1.0)
   {
     time = millis();
-    float elapsed = (time - old_time) / 1000.0;
+    float elapsed = (time - old_time) / 2000.0;
     if (DEBUG) Serial.print("t ");
     if (DEBUG) padding(elapsed, 1);
     float theta;
     float x_d;
     float y_d;
 
-    if (ss.da > 0) theta = current.r - PI / 2.0;
-    else if (ss.da < 0) theta = current.r + PI / 2.0;
+    if (ss.da > 0) theta = p.r - PI / 2.0;
+    else if (ss.da < 0) theta = p.r + PI / 2.0;
     x_d = get_x_length(theta, ss.da, elapsed, ss.r);
     y_d = get_y_length(theta, ss.da, elapsed, ss.r);
 
     tracking.x += x_d;
     tracking.y += y_d;
-    tracking.r = atan2( (tracking.y - old_tracking.y), (tracking.x - old_tracking.x) );
+    tracking.r = atan2( (tracking.y - old_tracking.y)/(elapsed+0.001), (tracking.x - old_tracking.x)/(elapsed+0.001) );
     old_tracking = tracking;
 
     current.x += ss.r * (cos(theta + ss.da * elapsed) - cos(theta));
     current.y += ss.r * (sin(theta + ss.da * elapsed) - sin(theta));
 
+    if (DEBUG) Serial.print(" |dCX ");
+    if (DEBUG) padding(ss.r * (cos(theta + ss.da * elapsed) - cos(theta)), 2);
+    if (DEBUG) Serial.print(" |dCY ");
+    if (DEBUG) padding(ss.r * (sin(theta + ss.da * elapsed) - sin(theta)), 2);    
     if (DEBUG) Serial.print(" |TH ");
     if (DEBUG) padding(theta * R_TO_D, 4);
     if (DEBUG) Serial.print(" |CTH ");
     if (DEBUG) padding((theta + ss.da * elapsed)*R_TO_D, 4);
+    current.r = atan2( (current.y - old_current.y)/(elapsed+0.001), (current.x - old_current.x)/(elapsed+0.001) );
 
-    current.r = atan2( (current.y - old_current.y), (current.x - old_current.x) );
-    old_current = current;
     t = get_curve_parameter(tracking.Length());
     if (DEBUG) Serial.print(" |S ");
     if (DEBUG) padding(t, 1);
@@ -317,6 +316,7 @@ void run(float dist)
     if (DEBUG) Serial.print(x_d);
     if (DEBUG) Serial.print(" |Y: ");
     if (DEBUG) Serial.print(y_d);
+    old_current = current;
     old_p = p;
     ss = set_speed_angle(v.Length(), v.r);
     old_time = time;
@@ -474,10 +474,13 @@ float get_curve_length()
   float h = t_max / n;
 
   float l = 0.0;
+  float a0 = t0;
+  t0 += h;
 
   for (int i = 0; i <= n; i++)
   {
-    l += velocity(t0).Length();
+    l += (velocity(t0).Length()-velocity(a0).Length())/h;
+    a0 = t0;
     t0 += h;
   }
   return l;
