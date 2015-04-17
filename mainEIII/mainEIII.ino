@@ -22,6 +22,7 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 #define sff 4
 #define D_TO_R PI/180.0
 #define R_TO_D 180.0/PI
+#define DEBUG false
 
 struct Point {
 	float x;
@@ -193,7 +194,7 @@ void setup(){
     Tft.drawLine(220-(p0.y*d_scale), 300-(p0.x*d_scale), 220-((p0.y+2*sin(p0.r))*d_scale), 300-((p0.x+2*cos(p0.r))*d_scale), RED);
     Tft.drawLine(220-(p1.y*d_scale), 300-(p1.x*d_scale), 220-((p1.y+2*sin(p1.r))*d_scale), 300-((p1.x+2*cos(p1.r))*d_scale), BLUE);    
 
-    Serial.println("Setup complete");
+    if (DEBUG) Serial.println("Setup complete");
 
     while(ts.pressure() < ts.pressureThreshhold);
 
@@ -217,7 +218,7 @@ void setup(){
 	old_a = v.r;
     ss = set_speed_angle(v.Length(), v.r);
     old_time = millis();   
-	Serial.println();
+	if (DEBUG) Serial.println();
 	old_tracking = tracking;
 	old_current = current;
 }
@@ -270,8 +271,8 @@ void run()
     if(t < 1.0)
     {
         float elapsed = (time - old_time)/1000.0;
-        Serial.print("t ");
-        padding(elapsed, 1);
+        if (DEBUG) Serial.print("t ");
+        if (DEBUG) padding(elapsed, 1);
 	    /*tracking.x += ss.x*elapsed;
 		tracking.y += ss.y*elapsed;
 		tracking.r += atan2((tracking.y - old_tracking.y),(tracking.x - old_tracking.x + 0.0000001))*elapsed;
@@ -308,45 +309,45 @@ void run()
 			current.x += ss.v * cos(current.r) * elapsed;
 			current.y += ss.v * sin(current.r) * elapsed;
 		}*/
-		Serial.print(" |TH ");
-		padding(theta*R_TO_D, 4);
-		Serial.print(" |CTH ");
-	    padding((theta+ss.da*elapsed)*R_TO_D, 4);
+		if (DEBUG) Serial.print(" |TH ");
+		if (DEBUG) padding(theta*R_TO_D, 4);
+		if (DEBUG) Serial.print(" |CTH ");
+	    if (DEBUG) padding((theta+ss.da*elapsed)*R_TO_D, 4);
 		//current.x += ss.v*cos(current.r+ss.da*elapsed)*elapsed;
 		//current.y += ss.v*sin(current.r+ss.da*elapsed)*elapsed;
 		current.r = atan2( (current.y - old_current.y), (current.x - old_current.x) );
 		old_current = current;
 		t = get_curve_parameter(tracking.Length());
-		Serial.print(" |S ");
-		padding(t, 1);
+		if (DEBUG) Serial.print(" |S ");
+		if (DEBUG) padding(t, 1);
         p_curve(t);
-        Serial.print(" |PX ");
-        padding(p.x, 4);
-        Serial.print(" |PY ");
-        padding(p.y, 4);       
-		Serial.print(" |PR ");
-		padding(p.r*R_TO_D, 4);
-        Serial.print(" |VX ");
-        padding(v.x, 4);
-        Serial.print(" |VY ");
-        padding(v.y, 4);       
-		Serial.print(" |VR ");
-		padding(v.r*R_TO_D, 4);
+        if (DEBUG) Serial.print(" |PX ");
+        if (DEBUG) padding(p.x, 4);
+        if (DEBUG) Serial.print(" |PY ");
+        if (DEBUG) padding(p.y, 4);       
+		if (DEBUG) Serial.print(" |PR ");
+		if (DEBUG) padding(p.r*R_TO_D, 4);
+        if (DEBUG) Serial.print(" |VX ");
+        if (DEBUG) padding(v.x, 4);
+        if (DEBUG) Serial.print(" |VY ");
+        if (DEBUG) padding(v.y, 4);       
+		if (DEBUG) Serial.print(" |VR ");
+		if (DEBUG) padding(v.r*R_TO_D, 4);
 		//tracking = Point( (tracking.x+x_d), (tracking.y+y_d), (tracking.r+ss.da*elapsed) );
-        Serial.print(" |CX ");
-        padding(current.x, 3);
-        Serial.print(" |CY ");
-        padding(current.y, 3);
-		Serial.print(" |CR ");
-		padding(current.r*R_TO_D, 4);
-		Serial.print(" |X: ");
-		Serial.print(x_d);
-		Serial.print(" |Y: ");
-	    Serial.print(y_d);	
+        if (DEBUG) Serial.print(" |CX ");
+        if (DEBUG) padding(current.x, 3);
+        if (DEBUG) Serial.print(" |CY ");
+        if (DEBUG) padding(current.y, 3);
+		if (DEBUG) Serial.print(" |CR ");
+		if (DEBUG) padding(current.r*R_TO_D, 4);
+		if (DEBUG) Serial.print(" |X: ");
+		if (DEBUG) Serial.print(x_d);
+		if (DEBUG) Serial.print(" |Y: ");
+	    if (DEBUG) Serial.print(y_d);	
         ss = set_speed_angle(v.Length(), v.r);
         old_time = time;
         draw();
-		Serial.println();
+		if (DEBUG) Serial.println();
     }
     
     if(t >= 1.0) set_speed(zero, zero);
@@ -425,20 +426,20 @@ Curve set_speed_angle(float vel, float ang)
 	}
 
     
-    Serial.print(" |v ");
-    padding(vel, 3);
-    Serial.print(" |a ");
-    padding(ang*R_TO_D, 4);
+    if (DEBUG) Serial.print(" |v ");
+    if (DEBUG) padding(vel, 3);
+    if (DEBUG) Serial.print(" |a ");
+    if (DEBUG) padding(ang*R_TO_D, 4);
     //Serial.print("\tr: ");
     //Serial.print(r);
     //Serial.print("\tr_inner ");
     //Serial.print(r_inner);
     //Serial.print("\tr_outer ");
     //Serial.print(r_outer);
-    Serial.print(" |v_i ");
-    padding(v_inner, 3);
-    Serial.print(" |v_o ");
-    padding(v_outer, 3);
+    if (DEBUG) Serial.print(" |v_i ");
+    if (DEBUG) padding(v_inner, 3);
+    if (DEBUG) Serial.print(" |v_o ");
+    if (DEBUG) padding(v_outer, 3);
     //Serial.print(" |cm_i ");
     //padding(cm_to_speed(v_inner)+zero, 4);
     //Serial.print(" |cm_o ");
@@ -446,12 +447,12 @@ Curve set_speed_angle(float vel, float ang)
 
     if(ang > 0.0) //rotate ccw, left is r_inner
     {
-		Serial.print(" |L ");
+		if (DEBUG) Serial.print(" |L ");
         set_speed(cm_to_speed(v_inner)+zero, cm_to_speed(v_outer)+zero);
     }
     else
     {
-		Serial.print(" |R ");
+		if (DEBUG) Serial.print(" |R ");
         set_speed(cm_to_speed(v_outer)+zero, cm_to_speed(v_inner)+zero);
     }
 
@@ -640,7 +641,7 @@ void padding( double number, byte width ) {
 	byte i = 1;
 	if( number < 0 ) 
 	{
-		Serial.print("-");
+		if (DEBUG) Serial.print("-");
 		i = 2;
 		number = -number;
 	}
@@ -649,18 +650,18 @@ void padding( double number, byte width ) {
 
 	for (i; i<width; i++){
 		if (number < currentMax) {
-			Serial.print("0");
+			if (DEBUG) Serial.print("0");
 		}
 		currentMax *= 10;
 	} 
-	Serial.print(number);
+	if (DEBUG) Serial.print(number);
 }
 
 void padding( float number, byte width ) {
 	byte i = 1;
 	if( number < 0 ) 
 	{
-		Serial.print("-");
+		if (DEBUG) Serial.print("-");
 		i = 2;
 		number = -number;
 	}
@@ -669,18 +670,18 @@ void padding( float number, byte width ) {
 
 	for (i; i<width; i++){
 		if (number < currentMax) {
-			Serial.print("0");
+			if (DEBUG) Serial.print("0");
 		}
 		currentMax *= 10;
 	} 
-	Serial.print(number);
+	if (DEBUG) Serial.print(number);
 }
 
 void padding( int number, byte width ) {
 	byte i = 1;
 	if( number < 0 ) 
 	{
-		Serial.print("-");
+		if (DEBUG) Serial.print("-");
 		i = 2;
 		number = -number;
 	}
@@ -689,11 +690,11 @@ void padding( int number, byte width ) {
 
 	for (i; i<width; i++){
 		if (number < currentMax) {
-			Serial.print("0");
+			if (DEBUG) Serial.print("0");
 		}
 		currentMax *= 10;
 	} 
-	Serial.print(number);
+	if (DEBUG) Serial.print(number);
 }
 
 float ping_median(NewPing* sensor, float avg, int i, int n)
@@ -701,14 +702,14 @@ float ping_median(NewPing* sensor, float avg, int i, int n)
   
     float pini = sensor->ping();
     if(pini == 0){
-        Serial.print("F1: ");
-        Serial.print(n);
-        Serial.print(" ");
+        if (DEBUG) Serial.print("F1: ");
+        if (DEBUG) Serial.print(n);
+        if (DEBUG) Serial.print(" ");
         pini = sensor->ping();
         if(pini == 0){
-            Serial.print("F2: ");
-            Serial.print(n);
-            Serial.print(" ");
+            if (DEBUG) Serial.print("F2: ");
+            if (DEBUG) Serial.print(n);
+            if (DEBUG) Serial.print(" ");
             pini = sensor->ping();
         }
     }
@@ -774,12 +775,12 @@ void stablize(){
       //l_vel = (cruise-zero)-correction_speed;
       //r_vel = (cruise-zero)+correction_speed;
         
-    Serial.print("l_dist:\t");
-    Serial.print(l_dist);
-    Serial.print("\tr_dist:\t");
-    Serial.print(r_dist);
-    Serial.print("\tdifference:\t");
-    Serial.println(abs(r_dist-l_dist));
+    if (DEBUG) Serial.print("l_dist:\t");
+    if (DEBUG) Serial.print(l_dist);
+    if (DEBUG) Serial.print("\tr_dist:\t");
+    if (DEBUG) Serial.print(r_dist);
+    if (DEBUG) Serial.print("\tdifference:\t");
+    if (DEBUG) Serial.println(abs(r_dist-l_dist));
     
     if(abs(angle)>3.0)
     {
@@ -801,8 +802,8 @@ void stablize(){
     {
         //Serial.println("\nAngle's fine, moving toward the left");
         //Serial.print("acc delta: ");
-        Serial.print((abs(angle))*a_max*abs((l_vel+1)/max_speed)); 
-        Serial.println();
+        if (DEBUG) Serial.print((abs(angle))*a_max*abs((l_vel+1)/max_speed)); 
+        if (DEBUG) Serial.println();
         
         l_acc -= (abs(angle))*a_max*abs((l_vel+1)/max_speed);
         r_acc += (abs(angle))*a_max*abs((r_vel+1)/max_speed);        
@@ -810,8 +811,8 @@ void stablize(){
     {
         //Serial.println("Angle's fine, moving toward the right");      
         //Serial.print("\nacc delta: ");
-        Serial.print((abs(angle))*a_max*abs((l_vel+1)/max_speed));   
-        Serial.println();
+        if (DEBUG) Serial.print((abs(angle))*a_max*abs((l_vel+1)/max_speed));   
+        if (DEBUG) Serial.println();
         
         l_acc += (abs(angle))*a_max*abs((l_vel+1)/max_speed);
         r_acc -= (abs(angle))*a_max*abs((r_vel+1)/max_speed);        
@@ -834,21 +835,21 @@ void stablize(){
     if(r_acc > a_max) r_acc = a_max;
     if(r_acc < -a_max) r_acc = -a_max;
     
-    Serial.print("\nright: \t");    
-    Serial.print(r_angle);
-    Serial.print("\t left: \t");
-    Serial.print(l_angle);
-    Serial.print("\t average: \t");
-    Serial.println(angle);
-    Serial.print("left speed: \t");
-    Serial.print(l_vel);
-    Serial.print(" \tleft acc: \t");
-    Serial.println(l_acc);
-    Serial.print("right speed: \t");
-    Serial.print(r_vel);
-    Serial.print(" \tright acc: \t");
-    Serial.println(r_acc);
-    Serial.println();
+    if (DEBUG) Serial.print("\nright: \t");    
+    if (DEBUG) Serial.print(r_angle);
+    if (DEBUG) Serial.print("\t left: \t");
+    if (DEBUG) Serial.print(l_angle);
+    if (DEBUG) Serial.print("\t average: \t");
+    if (DEBUG) Serial.println(angle);
+    if (DEBUG) Serial.print("left speed: \t");
+    if (DEBUG) Serial.print(l_vel);
+    if (DEBUG) Serial.print(" \tleft acc: \t");
+    if (DEBUG) Serial.println(l_acc);
+    if (DEBUG) Serial.print("right speed: \t");
+    if (DEBUG) Serial.print(r_vel);
+    if (DEBUG) Serial.print(" \tright acc: \t");
+    if (DEBUG) Serial.println(r_acc);
+    if (DEBUG) Serial.println();
 
 //    if( abs(tolf)>0.1 && abs(tolr)>0.1 && abs(torf)>0.1 && abs(torr)>0.1)
 //    {
