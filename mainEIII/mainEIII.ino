@@ -41,7 +41,7 @@ struct Curve {
 //function declarations
 float ping_median(NewPing* sensor, float avg, int i, int j);
 void stablize();
-void rotate();
+void rotate(int i);
 void exec_command();
 void announce_sensors();
 int get_int(int chars = 1);
@@ -75,6 +75,7 @@ int opy;
 int ovx;
 int ovy;
 int d_scale = 5;
+float old_a;
 
 Point tracking = Point(0.0, 0.0, 0.0);
 Point old_tracking = Point(0.0, 0.0, 0.0);
@@ -168,8 +169,8 @@ void setup(){
 //    Tft.drawString("Robotics",25,80,3,WHITE);
 //    Tft.drawString("^_^",30 ,200,8,WHITE);
 
-	p0 = Point(0.0, 30.5, 0.0);
-	p1 = Point(121.5, 0.0, 0.0);
+	p0 = Point(0.0, 0.0, 0.0);
+	p1 = Point(121.5, 31.5, 0.0);
 	tracking = Point(0.0, 0.0, 0.0);
 	current = p0;
 
@@ -208,18 +209,17 @@ void setup(){
 
 	t = t_min;*/
 
-
 	//l = distance(p0, p1);
     p_curve(t_min);
 	ovx = v.x*d_scale;
 	ovy = v.y*d_scale;
 	//l = get_curve_length();
+	old_a = v.r;
     ss = set_speed_angle(v.Length(), v.r);
     old_time = millis();   
 	Serial.println();
 	old_tracking = tracking;
 	old_current = current;
-    
 }
 
 void loop() {
@@ -269,7 +269,7 @@ void run()
     
     if(t < 1.0)
     {
-        float elapsed = (time - old_time)/2000.0;
+        float elapsed = (time - old_time)/1000.0;
         Serial.print("t ");
         padding(elapsed, 1);
 	    /*tracking.x += ss.x*elapsed;
@@ -279,16 +279,35 @@ void run()
 		old_tracking.y = tracking.y;
 		old_tracking.r = tracking.r;*/
 		float theta;
-		if(ss.da >= 0) theta = current.r - PI/2.0;
-		if(ss.da < 0) theta = current.r + PI/2.0;
-		float x_d = get_x_length(theta, ss.da, elapsed, ss.r);
-		float y_d = get_y_length(theta, ss.da, elapsed, ss.r);
+		float x_d;
+		float y_d;
+		/*if(abs(ss.da) < 0.1)
+		{
+			x_d = ss.v * cos(current.r) * elapsed;
+			y_d = ss.v * sin(current.r) * elapsed;
+
+		}
+		else
+		{*/
+		if(ss.da > 0) theta = current.r - PI/2.0;
+		else if(ss.da < 0) theta = current.r + PI/2.0;
+		x_d = get_x_length(theta, ss.da, elapsed, ss.r);
+		y_d = get_y_length(theta, ss.da, elapsed, ss.r);
+		//}
 		tracking.x += x_d;
 		tracking.y += y_d;
 		tracking.r = atan2( (tracking.y-old_tracking.y), (tracking.x-old_tracking.x) );
 		old_tracking = tracking;
-		current.x += ss.v*(cos(theta+ss.da*elapsed) - cos(theta));
-		current.y += ss.v*(sin(theta+ss.da*elapsed) - sin(theta));
+		/*if(abs(ss.da < 0.1))
+		{*/
+		current.x += ss.r*(cos(theta+ss.da*elapsed) - cos(theta));
+		current.y += ss.r*(sin(theta+ss.da*elapsed) - sin(theta));
+		/*}
+		else
+		{
+			current.x += ss.v * cos(current.r) * elapsed;
+			current.y += ss.v * sin(current.r) * elapsed;
+		}*/
 		Serial.print(" |TH ");
 		padding(theta*R_TO_D, 4);
 		Serial.print(" |CTH ");
@@ -349,15 +368,46 @@ float cm_to_speed(float v)
     return (v-10.0735)/0.029695;
 }
 
+void rotate(int r)
+{
+	//d = 17.5 => r = 8.75
+	//r > 0 -> rotate ccw
+	if(r > 0)
+	{
+		for(int i = 0; i < r; i++)
+		{
+			set_speed((-1*cm_to_speed(27.4889))+zero, cm_to_speed(27.4889)+zero);
+			float t0 = millis();
+			while(millis() - t0 < 500) {}
+			set_speed(zero, zero);
+		}
+	}
+	if(r < 0)
+	{
+		for(int i = 0; i < r; i++)
+		{
+			set_speed(cm_to_speed(27.4889)+zero, (-1*cm_to_speed(27.4889))+zero);
+			float t0 = millis();
+			while(millis() - t0 < 500) {}
+			set_speed(zero, zero);
+		}
+	}
+}
+
 Curve set_speed_angle(float vel, float ang)
 {
+	/*if( abs (ang-old_a) > 0.001) 
+	{
+		Serial.print(" O/W ");
+		ang = old_a * -1;
+	}
+	ang = ang / 2.0;*/
     float r = abs(vel/(ang+0.00000001)); 
     float r_inner = r - 8.75;
     float r_outer = r + 8.75;
     float v_inner = r_inner * abs(ang);
     float v_outer = r_outer * abs(ang);
-
-	/*
+		
 	while(cm_to_speed(v_inner)+zero > 2700 || cm_to_speed(v_outer)+zero > 2700)
 	{
 		vel = vel * 0.99;
@@ -372,7 +422,7 @@ Curve set_speed_angle(float vel, float ang)
 		ang = ang * 1.01;
 		v_inner = v_inner * 1.01;
 		v_outer = v_outer * 1.01;
-	}*/
+	}
 
     
     Serial.print(" |v ");
