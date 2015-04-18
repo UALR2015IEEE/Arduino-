@@ -22,7 +22,8 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 #define sff 4
 #define D_TO_R PI/180.0
 #define R_TO_D 180.0/PI
-#define DEBUG false
+#define wallthr 5
+#define DEBUG true
 
 struct Point {
   float x;
@@ -42,12 +43,14 @@ struct Curve {
 };
 
 //function declarations
+void center();
+void get_sensor(int i);
 float ping_median(NewPing* sensor, float avg, int i, int j);
 void get_sensor_readings();
 void stablize();
 void rotate(int i);
 void exec_command();
-void announce_sensors();
+void announce_sensors(bool f, bool l, bool r);
 int get_int(int chars = 1);
 void set_speed(int left, int right);
 boolean read_serial();
@@ -70,7 +73,8 @@ float get_y_length(float a0, float da, float tf, float r);
 void padding( int number, byte width );
 void padding( float number, byte width );
 void padding( double number, byte width );
-void run(float dist);
+void run(int num);
+float get_y_offset();
 
 //variable declarations
 int mode = 1;
@@ -79,6 +83,7 @@ int opy;
 int ovx;
 int ovy;
 int d_scale = 5;
+bool first = true;
 
 Point tracking = Point(0.0, 0.0, 0.0);
 Point old_tracking = Point(0.0, 0.0, 0.0);
@@ -157,7 +162,9 @@ void setup() {
   sb->sendColour(0, 0, 1023);
 
   sonlf = new NewPing(23, 22, 50);
-  sonrf = new NewPing(25, 24, 50);
+  sonrf = new NewPing(25, 25, 50);
+  pinMode(24, OUTPUT);
+  digitalWrite(24, HIGH);
   sonlr = new NewPing(27, 26, 50);
   sonrr = new NewPing(31, 30, 50);
   sonff = new NewPing(29, 28, 215);
@@ -198,13 +205,25 @@ void setup() {
   ovx = v.x * d_scale;
   ovy = v.y * d_scale;
   wait4start();
+  run(3);
+  rotate(2);
 }
 
 void loop() {
+  //get_sensor_readings();
+  //Serial.println(get_y_offset());
+  //get_sensor_readings();
+  /*
   button = ts.pressure() > ts.pressureThreshhold || button;
+  if(button){
+    while(true){
+      setSpeed(zero, zero);
+      read_serial();
+    }
+  }
   command_stat = read_serial();
   if (command_stat){
-    if (move_block != 0){
+    if (move_blocks != 0){
       run(move_blocks);
       move_blocks = 0;
     }
@@ -241,14 +260,15 @@ void loop() {
     //            mode += 1;
     //            if(mode > 1) mode = 0;
     //            //exec_command();
-    //}
+    }
+	*/
 }
 
 void boot(){
-    Tft.drawString("UALR",0,25,4,RED);
-    Tft.drawString("Robotics",25,80,3,GREEN);
-    Tft.drawString("^_^",30 ,150,8,BLUE);
-    Tft.drawString("booting...", 0, 250, 2, YELLOW);
+    //Tft.drawString("UALR",0,25,4,RED);
+    //Tft.drawString("Robotics",25,80,3,GREEN);
+    //Tft.drawString("^_^",30 ,150,8,BLUE);
+    //Tft.drawString("booting...", 0, 250, 2, YELLOW);
     delay(1000);
 }
 
@@ -274,33 +294,90 @@ void wait4start(){
     button = true;
 }
 
-void run(float dist)
+float get_y_offset()
 {
+  //float ry = (8.5+(dist[srf]+dist[srr])/2.0)*cos(angle);
+  //if(ry > 15.75) 
+  float dLeft = (dist[slf]+dist[slr])/2.0;
+  float dRight = (dist[srf]+dist[srr])/2.0;
+  if( dLeft > 0 && dRight > 0 ) return ((15.75-(8.5+(dist[slf]+dist[slr])/2.0)*cos(angle))+((8.5+(dist[srf]+dist[srr])/2.0)*cos(angle)-15.75))/2.0;
+  else if (dLeft > 0) return (15.75-(8.5+(dist[slf]+dist[slr])/2.0)*cos(angle));
+  else if (dRight > 0) return ((8.5+(dist[srf]+dist[srr])/2.0)*cos(angle)-15.75);
+  //else return ((15.75-(8.5+(dist[srf]+dist[srr])/2.0)*cos(angle))+((8.5+(dist[slf]+dist[slr])/2.0)*cos(angle)-15.75))/2.0;
+}
 
+void run(int num)
+{
+  for(int i = 0; i < num; i++)
+  {
   get_sensor_readings();
   t = t_min;
-  p0 = Point(0.0, 0.0, 1.0 * D_TO_R);
-  p1 = Point(31.5, 0.0, 0.0);
+  if(first) 
+  {
+    first = false;
+  	p0 = Point(0.0, get_y_offset(), angle);
+  }
+  else
+  {
+    p0 = Point(current.x-p1.x, get_y_offset(), angle);
+  }
+  p1 = Point(30.5-p0.x, 0, 0);
   tracking = Point(0.0, 0.0, 0.0);
   current = p0;
+  current.r = angle;
+  //t += 0.01;
   p_curve(t);
-  old_p = position(t_min - 0.01);
-  old_p.r = p.r + 0.001 * (elapsed + 0.2);
-  old_p.x = p.x + -0.1 * (elapsed + 0.2);
+  //old_p = position(t_min);
+  //old_p.r = p.r - 0.1;
+  //old_p.r = p.r-0.001;
+  //old_p.x = p.x-0.01;
+  //old_p.y = p.y-0.01;
+  old_p = position(t_min - 0.15);
+  //old_p.r = p.r + 0.001 * (elapsed + 0.2);
+  //old_p.x = p.x + -0.1 * (elapsed + 0.2);
+  //v.r = (p.r - old_p.r) / (elapsed + 0.2);
+  //v.x = (p.x - old_p.x) / (elapsed + 0.2);
+  //v.y = (p.y - old_p.y) / (elapsed + 0.2);
+  //old_p.r = (v.r*(elapsed+0.2)-p.r)*-1;
+  //old_p.x = (v.x*(elapsed+0.2)-p.x)*-1;
+  //old_p.y = (v.y*(elapsed+0.2)-p.y)*-1;
+  v = velocity(t_min - 0.05);
   v.r = (p.r - old_p.r) / (elapsed + 0.2);
-  v.x = (p.x - old_p.x) / (elapsed + 0.2);
-  v.y = (p.y - old_p.y) / (elapsed + 0.2);
+
+  v.x = 20.0*cos(current.r);
+  v.y = 20.0*sin(current.r);
+  v.r = 0.1;
+  
+  old_p.r = (v.r*(elapsed+0.1)-p.r)*-1;
+  old_p.x = (v.x*(elapsed+0.1)-p.x)*-1;
+  old_p.y = (v.y*(elapsed+0.1)-p.y)*-1;
+
+  Serial.println(v.Length());
+  Serial.println(v.x);
+  Serial.println(v.y);
+  Serial.println(v.r);
   if ( abs(v.r) < 0.01) v.r = 0.01;
-  ss = set_speed_angle(v.Length(), 0.01);
+  if ( abs(v.r) > 2*PI) v.r = 0.01;
+  ss = set_speed_angle(v.Length(), v.r);
   old_time = millis();
   if (DEBUG) Serial.println();
   old_tracking = tracking;
   old_current = current;
-  
+  Serial.println("DONE"); 
   while (t < 1.0)
   {
+    get_sensor(sff);
+	Serial.println(dist[sff]);
+    if(dist[sff] < 5.0)
+	{
+	  set_speed(zero, zero);
+	  break;
+    }
+    //get_sensor_readings();
+	//current.r = angle;
     time = millis();
-    float elapsed = (time - old_time) / 2000.0;
+    float elapsed = (time - old_time) / 1000.0;
+	if(elapsed > 0.1) {
     if (DEBUG) Serial.print("t ");
     if (DEBUG) padding(elapsed, 1);
     float theta;
@@ -338,6 +415,7 @@ void run(float dist)
     v.x = (p.x - old_p.x) / (elapsed + 0.001);
     v.y = (p.y - old_p.y) / (elapsed + 0.001);
     if ( abs(v.r) < 0.01) v.r = 0.01;
+	if ( abs(v.r) > 10) v.r = 0.01;
     if (DEBUG) Serial.print(" |PX ");
     if (DEBUG) padding(p.x, 4);
     if (DEBUG) Serial.print(" |PY ");
@@ -366,10 +444,22 @@ void run(float dist)
     old_time = time;
     draw();
     if (DEBUG) Serial.println();
+	}
   }
 
   set_speed(zero, zero);
+  center();
+  Serial.println("FINISHED.");
+  }
+}
 
+void get_sensor(int s)
+{
+  for(int i = 0; i < 3; i++)
+  {
+    avg[s] = ping_median(sensors[s], avg[s], i, s); 
+  }
+  dist[s] = avg[s] / US_ROUNDTRIP_CM;
 }
 
 float distance(float x, float y)
@@ -385,6 +475,23 @@ float distance(Point p1, Point p2)
 float cm_to_speed(float v)
 {
   return (v - 10.0735) / 0.029695;
+}
+
+void center()
+{
+
+  get_sensor_readings();
+
+  while( abs(angle) > 5.0*D_TO_R )
+  {
+    if(angle < 0)
+    { 
+      set_speed((-1 * cm_to_speed(15)) + zero, cm_to_speed(15) + zero);
+	}
+	else set_speed(cm_to_speed(15)+zero, (-1 * cm_to_speed(15)) + zero);
+	get_sensor_readings();
+  }
+  set_speed(zero, zero);
 }
 
 void rotate(int r)
@@ -411,6 +518,7 @@ void rotate(int r)
       set_speed(zero, zero);
     }
   }
+  center();
 }
 
 Curve set_speed_angle(float vel, float ang)
@@ -421,13 +529,25 @@ Curve set_speed_angle(float vel, float ang)
   	ang = old_a * -1;
   }
   ang = ang / 2.0;*/
+
   float r = abs(vel / (ang + 0.00000001));
   float r_inner = r - 8.75;
   float r_outer = r + 8.75;
-  float v_inner = r_inner * abs(ang);
-  float v_outer = r_outer * abs(ang);
+  float v_inner;
+  float v_outer;
+  if( abs(ang) < 0.01 )
+  {
+    v_inner = vel;
+	v_outer = vel;
+  }
+  else
+  {
+    v_inner = r_inner * abs(ang);
+    v_outer = r_outer * abs(ang);
+  }
+
   float f = 1;
-  while (cm_to_speed(v_inner) + zero > 2700 || cm_to_speed(v_outer) + zero > 2700)
+  while (cm_to_speed(v_inner) + zero > 3500 || cm_to_speed(v_outer) + zero > 3500)
   {
     f = f * 0.99;
     vel = vel * 0.99;
@@ -436,7 +556,7 @@ Curve set_speed_angle(float vel, float ang)
     v_outer = v_outer * 0.99;
   }
 
-  while (cm_to_speed(v_inner) + zero < 2400 || cm_to_speed(v_outer) + zero < 2400)
+  while (cm_to_speed(v_inner) + zero < 2800 || cm_to_speed(v_outer) + zero < 2800)
   {
     f = f * 1.01;
     vel = vel * 1.01;
@@ -445,8 +565,9 @@ Curve set_speed_angle(float vel, float ang)
     v_outer = v_outer * 1.01;
   }
 
+  Serial.println(f);
 
-  if (DEBUG) Serial.print(" |v ");
+if (DEBUG) Serial.print(" |v ");
   if (DEBUG) padding(vel, 3);
   if (DEBUG) Serial.print(" |da ");
   if (DEBUG) padding(ang * R_TO_D, 4);
@@ -594,6 +715,23 @@ float get_curve_parameter(float s)
   return t0;
 }
 
+float get_neg_curve_parameter(float s)
+{
+  float t0 = t_min;
+  int n = 20;
+  float h = s / n;
+
+  for (int i = 0; i <= n; i++)
+  {
+    float k1 = h / velocity(t0).Length();
+    float k2 = h / velocity(t0 - k1 / 2.0).Length();
+    float k3 = h / velocity(t0 - k2 / 2.0).Length();
+    float k4 = h / velocity(t0 - k3 / 2.0).Length();
+    t0 -= (k1 + 2.0 * (k2 + k3) + k4) / 6.0;
+  }
+  return t0;
+}
+
 Point position(float t0)
 {
   float t2 = t0 * t0;
@@ -729,6 +867,11 @@ float ping_median(NewPing* sensor, float avg, int i, int n)
 
 void get_sensor_readings()
 {
+  for(int i = 0; i < 5; i++)
+  {
+    avg[i] = 0.0;
+	dist[i] = 0.0;
+  }
 
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 5; j++)
@@ -744,7 +887,7 @@ void get_sensor_readings()
     //Serial.print(dist[i]);
     //Serial.print("\t");
   }
-
+  /*
   Serial.print("\nSFF: ");
   padding(dist[sff], 3);
   Serial.print(" SLF: ");
@@ -756,11 +899,11 @@ void get_sensor_readings()
   Serial.print(" SRR: ");
   padding(dist[srr], 3);
   Serial.println();
-
+  */
   l_dist = (dist[slf] + dist[slr]) / 2.0;
   r_dist = (dist[srf] + dist[srr]) / 2.0;
-  r_angle = atan((dist[srr] - dist[srf]) / 8.0) * 180 / 3.14159;
-  l_angle = -1 * atan((dist[slr] - dist[slf]) / 8.25) * 180 / 3.14159;
+  r_angle = -1 * atan((dist[srr] - dist[srf]) / 8.0);
+  l_angle = atan((dist[slr] - dist[slf]) / 8.25);
 
   angle = 0.0;
 
@@ -771,7 +914,6 @@ void get_sensor_readings()
   }
   else angle = (r_angle + l_angle) / 2.0;
 
-  angle = l_angle;
   wall_dist = dist[sff] * cos(angle);
 
 }
@@ -784,18 +926,10 @@ void exec_command() {
   }
 }
 
-void announce_sensors() {
-  //    Serial.print("lf ");
-  //    Serial.print(ping_median(sonlf));
-  //    Serial.print(" lr ");
-  //    Serial.print(ping_median(sonlr));
-  //    Serial.print(" rf ");
-  //    Serial.print(ping_median(sonrf));
-  //    Serial.print(" rr ");
-  //    Serial.print(ping_median(sonrr));
-  //    Serial.print(" ff ");
-  //    Serial.print(ping_median(sonff));
-  //    Serial.print("\n");
+void announce_sensors(bool f, bool l, bool r) {
+  Serial.print(f);
+  Serial.print(l);
+  Serial.print(r);
 }
 
 int get_int(int chars) {
@@ -858,7 +992,7 @@ boolean read_serial() {
     readbyte = Serial.read();
 
     if (readbyte == 63) {
-      announce_sensors();
+      //announce_sensors();
       return false;
     }
     if (readbyte == 33) {
