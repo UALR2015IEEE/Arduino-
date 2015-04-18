@@ -201,6 +201,8 @@ void setup() {
 }
 
 void loop() {
+  get_sensor_readings();
+  /*
   button = ts.pressure() > ts.pressureThreshhold || button;
   command_stat = read_serial();
   if (command_stat){
@@ -215,7 +217,7 @@ void loop() {
     else{
       delay(100);
     }
-      
+      */
       //        announce_sensors();
     //
     //        if (command_stat){
